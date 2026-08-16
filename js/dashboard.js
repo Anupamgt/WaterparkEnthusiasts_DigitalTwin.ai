@@ -62,6 +62,21 @@ const crumb = document.getElementById("crumb");
 const heading = document.getElementById("heading");
 const prevBtn = document.getElementById("prev");
 const nextBtn = document.getElementById("next");
+const menuBtn = document.getElementById("menu");
+const scrim = document.getElementById("scrim");
+
+function setNavOpen(open) {
+  document.body.classList.toggle("nav-open", open);
+  menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  menuBtn.setAttribute("aria-label", open ? "Close chapters" : "Open chapters");
+  scrim.hidden = !open;
+}
+
+menuBtn.addEventListener("click", () => setNavOpen(!document.body.classList.contains("nav-open")));
+scrim.addEventListener("click", () => setNavOpen(false));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setNavOpen(false);
+});
 
 function routeFromHash() {
   const id = (location.hash.replace("#", "") || "home").toLowerCase();
@@ -78,6 +93,7 @@ function go(id, push) {
 }
 
 function render(route) {
+  setNavOpen(false);
   const idx = ROUTES.indexOf(route);
   [...navEl.children].forEach((el) => {
     el.classList.toggle("active", el.dataset.id === route.id);

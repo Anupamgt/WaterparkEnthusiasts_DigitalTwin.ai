@@ -2,32 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0A0E">
 <title>DigitalTwin.ai · story dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
+<div class="scrim" id="scrim" hidden></div>
 <div class="shell">
-  <aside class="rail">
+  <aside class="rail" id="rail">
     <div class="brand">
       <div class="mark">DigitalTwin<em>.ai</em></div>
       <div class="sub">Live twin story</div>
     </div>
     <nav class="nav" id="nav" aria-label="Dashboard sections"></nav>
-    <div class="rail-foot">Arrow keys move between chapters.<br>Each page keeps its original animation.</div>
+    <div class="rail-foot">Swipe or use Back / Next to move between chapters.<br>Each page keeps its original animation.</div>
   </aside>
 
   <div class="stage">
     <header class="topbar">
-      <div>
+      <button type="button" class="menu-btn" id="menu" aria-label="Open chapters" aria-controls="rail" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="titles">
         <div class="crumb" id="crumb">DigitalTwin.ai</div>
         <h1 id="heading">The line, <em>as a story.</em></h1>
       </div>
       <div class="pager">
-        <button type="button" id="prev">← Back</button>
-        <button type="button" id="next">Next →</button>
+        <button type="button" id="prev">← <span class="lbl">Back</span></button>
+        <button type="button" id="next"><span class="lbl">Next</span> →</button>
       </div>
     </header>
 
