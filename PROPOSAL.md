@@ -5,7 +5,7 @@
 **Prototype:** this repository (static site + `js/twin` engine)  
 **Domain:** mixed-model vehicle body / paint / final assembly. Not wastewater.
 
-This document is the Round 2 written submission. The working prototype of the core predictive mechanism is the **Ops** chapter (`pages/ops.html`), driven by `js/twin/engine.js` on simulated production events.
+This document is the Round 2 written submission. The working prototype of the core predictive mechanism is the **Ops** chapter (`pages/ops.html`), driven by `js/twin/engine.js` on simulated production events. Human-in-the-loop stages, tickets, and role-by-role flows are specified in [docs/HITL-PRD.md](docs/HITL-PRD.md).
 
 ---
 
@@ -102,6 +102,8 @@ These returns are **directionally argued from the simulation**, not claimed as a
 | **5 · Three sites** | After one shop trusts it | Copy priors, coverage rule, and QC grading. Leadership cost card. | A custom model per site on day one |
 
 Retrofits happen **only in maintenance windows**. Between windows the twin stays advisory.
+
+HITL tightens with each phase (mapping sign-off → bottleneck accept/dismiss → weld babysit + QC grade → sensor queued for a window → copilot as evidence only → per-site go/no-go). Full decision tables and sequence diagrams: [docs/HITL-PRD.md](docs/HITL-PRD.md).
 
 ---
 

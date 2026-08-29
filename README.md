@@ -7,6 +7,7 @@ A **clip-on advisory twin** for mixed-model vehicle assembly. Round 1 was a five
 | Submission | Where |
 | --- | --- |
 | Business proposal | [PROPOSAL.md](PROPOSAL.md) |
+| HITL PRD (stage-wise flows) | [docs/HITL-PRD.md](docs/HITL-PRD.md) |
 | Working prototype | Dashboard chapter **06 · Ops**, or open `pages/ops.html` |
 | Demo video | [docs/demo.mp4](docs/demo.mp4) (also attached on the PR) |
 | Tests | `npm test` |
