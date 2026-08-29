@@ -5,7 +5,7 @@
 **Prototype:** this repository (static site + `js/twin` engine)  
 **Domain:** mixed-model vehicle body / paint / final assembly. Not wastewater.
 
-This document is the Round 2 written submission. The working prototype of the core predictive mechanism is the **Ops** chapter (`pages/ops.html`), driven by `js/twin/engine.js` on simulated production events. Human-in-the-loop stages, tickets, and role-by-role flows are specified in [docs/HITL-PRD.md](docs/HITL-PRD.md).
+This document is the Round 2 written submission. The working prototype of the core predictive mechanism is the **Ops** chapter (`pages/ops.html`), driven by `js/twin/engine.js` on simulated production events. Stage-wise product flows (Sense → Grade → scale) are in [docs/PRD.md](docs/PRD.md). Human-in-the-loop tickets and Accept/Defer/Dismiss are in [docs/HITL-PRD.md](docs/HITL-PRD.md).
 
 ---
 
@@ -103,7 +103,7 @@ These returns are **directionally argued from the simulation**, not claimed as a
 
 Retrofits happen **only in maintenance windows**. Between windows the twin stays advisory.
 
-HITL tightens with each phase (mapping sign-off → bottleneck accept/dismiss → weld babysit + QC grade → sensor queued for a window → copilot as evidence only → per-site go/no-go). Full decision tables and sequence diagrams: [docs/HITL-PRD.md](docs/HITL-PRD.md).
+HITL tightens with each phase (mapping sign-off → bottleneck accept/dismiss → weld babysit + QC grade → sensor queued for a window → copilot as evidence only → per-site go/no-go). Full product flows: [docs/PRD.md](docs/PRD.md). Decision tables: [docs/HITL-PRD.md](docs/HITL-PRD.md).
 
 ---
 

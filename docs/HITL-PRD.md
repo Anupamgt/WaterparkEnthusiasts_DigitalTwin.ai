@@ -2,7 +2,7 @@
 
 **Track 4 · Round 2**  
 **Status:** product spec for advisory HITL (what the twin proposes, what a human must do, what gets graded later)  
-**Companion docs:** [PROPOSAL.md](../PROPOSAL.md) (business case), [README.md](../README.md) (how to run), Ops prototype (`pages/ops.html`)
+**Companion docs:** [PRD.md](PRD.md) (stage-wise product flows), [PROPOSAL.md](../PROPOSAL.md) (business case), [README.md](../README.md) (how to run), Ops prototype (`pages/ops.html`)
 
 This is not a closed-loop control spec. The twin **never writes a PLC, never moves a robot, never opens a clamp**. Every prediction is a proposal. A named person accepts, defers, or dismisses it. Later, the plant grades whether that call was right.
 
