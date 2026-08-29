@@ -53,6 +53,15 @@ const ROUTES = [
     crumb: "Day 1 through ongoing",
     src: "pages/setup.html",
   },
+  {
+    id: "ops",
+    num: "06",
+    label: "Ops",
+    hint: "Supervisor · manager · leadership",
+    title: "Three desks, one twin",
+    crumb: "Live 12-station prototype",
+    src: "pages/ops.html",
+  },
 ];
 
 const navEl = document.getElementById("nav");
