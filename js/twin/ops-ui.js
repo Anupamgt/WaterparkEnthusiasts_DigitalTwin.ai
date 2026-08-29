@@ -383,6 +383,10 @@ function setView(next) {
   document.querySelectorAll(".board").forEach((el) => {
     el.classList.toggle("on", el.dataset.board === view);
   });
+  const floor = view === "supervisor";
+  $("shops").hidden = !floor;
+  const legend = document.querySelector(".legendrow");
+  if (legend) legend.hidden = !floor;
   if (view === "manager") paintManager();
   if (view === "leadership") paintLeadership();
 }
@@ -433,6 +437,13 @@ $("presets").innerHTML = PRESETS.map((q) => `<button type="button" class="chip-b
 $("presets").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (b) submitAsk(b.textContent);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+  if (e.key === "1") setView("supervisor");
+  if (e.key === "2") setView("manager");
+  if (e.key === "3") setView("leadership");
 });
 
 reset();

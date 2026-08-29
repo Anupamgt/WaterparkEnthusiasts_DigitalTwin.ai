@@ -50,6 +50,7 @@ h1 em{font-style:italic;color:var(--violet)}
 .buf i{width:9px;height:22px;border-radius:2px;background:#EFEAF7;display:block}
 .buf i.on{background:var(--violet)}
 .legendrow{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 4px}
+#shops[hidden], .legendrow[hidden]{display:none !important}
 .lg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:3px}
 .board{display:none}
@@ -90,7 +91,7 @@ h1 em{font-style:italic;color:var(--violet)}
 .tag.latent{background:#FDEBD0;color:#8a5a00}
 .darkrow{justify-content:space-between;font-size:12px}
 .darkrow span{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet)}
-.ctrls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.ctrls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;position:sticky;bottom:8px;background:var(--paper);padding-top:8px}
 button.act, .chip-btn{
   font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;padding:8px 14px;min-height:40px;
   border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
