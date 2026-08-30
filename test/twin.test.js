@@ -274,6 +274,16 @@ describe("copilot is tool-calling only", () => {
     assert.match(a.runLine, /ms/);
   });
 
+  it("what-if on a non-constraint says the live constraint stays", () => {
+    const line = freshLine();
+    applyScenario(line, "s3_slow_weld");
+    run(line, 50, mulberry32(10));
+    const a = ask(line, "What happens if Station 4 runs 15% slower on night shift?");
+    assert.equal(a.intent.tool, "what_if");
+    assert.match(a.answer, /holds|not the live constraint/i);
+    assert.match(a.answer, /S3/);
+  });
+
   it("refuses PLC / interlock questions", () => {
     const intent = parseIntent("Write a PLC setpoint to slow Station 3");
     assert.equal(intent.tool, "refuse_plc");

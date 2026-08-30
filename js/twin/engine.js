@@ -418,7 +418,7 @@ export function whatIf(line, { station, factor, rolls = 120, horizon = 120, seed
     ...alt.injected,
     slow: { station, factor },
   };
-  const scenario = monteCarlo(alt, { rolls, horizon, seed: seed + 1 });
+  const scenario = monteCarlo(alt, { rolls, horizon, seed });
   const drop = base.meanTp <= 0 ? 0 : (1 - scenario.meanTp / base.meanTp) * 100;
   const baseConstraint = argmaxShare(base.bottleneck);
   const scenarioConstraint = argmaxShare(scenario.bottleneck);

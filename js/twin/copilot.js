@@ -177,9 +177,11 @@ export function runTool(line, intent) {
       const slower = Math.round((factor - 1) * 100);
       const stay = w.baseConstraint === w.scenarioConstraint;
       const verb = slower >= 0 ? `${slower}% slower` : `${Math.abs(slower)}% faster`;
-      const delta =
-        Math.abs(w.dropPct) < 2.5
-          ? `throughput holds (Δ ${w.dropPct.toFixed(1)}%, within noise — ${constraintName(station)} is not the live constraint)`
+      const slowedIsConstraint = w.baseConstraint === station || w.scenarioConstraint === station;
+      const delta = !slowedIsConstraint
+        ? `throughput holds — ${constraintName(station)} is not the live constraint (${constraintName(w.baseConstraint)} is, at ${w.base.bottleneck[w.baseConstraint]}% of rollouts)`
+        : Math.abs(w.dropPct) < 2.5
+          ? `throughput holds (Δ ${w.dropPct.toFixed(1)}%, within noise)`
           : `throughput ${w.dropPct >= 0 ? "drops" : "rises"} ${Math.abs(w.dropPct).toFixed(0)}%`;
       result = {
         text: `If ${constraintName(station)} runs ${verb}, ${delta}. ${constraintName(w.scenarioConstraint)} ${stay ? "stays" : "becomes"} the constraint (${w.scenario.bottleneck[w.scenarioConstraint]}% of rollouts). Advisory only — the twin does not write the PLC.`,
