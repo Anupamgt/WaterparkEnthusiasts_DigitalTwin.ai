@@ -51,6 +51,9 @@ export function parseIntent(question) {
   const station = parseStation(q);
   const pct = parsePct(q);
 
+  if (/plc|setpoint|interlock|closed.?loop|write the cell|actuator|slow the robot|open a clamp|auto-?slow/.test(q)) {
+    return { tool: "refuse_plc", args: {} };
+  }
   if (/sensor|where should|next sensor|coverage/.test(q)) {
     return { tool: "recommend_sensor", args: {} };
   }
@@ -103,6 +106,13 @@ export function runTool(line, intent) {
   const t0 = performance.now ? performance.now() : Date.now();
   let result;
   switch (intent.tool) {
+    case "refuse_plc": {
+      result = {
+        text: "Advisory twin. Talk to OT. No PLC. This system never writes a setpoint, speed, or interlock.",
+        data: { rolls: 0, refused: true },
+      };
+      break;
+    }
     case "recommend_sensor": {
       const rec = recommendNextSensor(line);
       result = { text: rec.reason, data: rec };
@@ -162,7 +172,7 @@ export function runTool(line, intent) {
     case "what_if": {
       const station = intent.args.station ?? 3;
       const factor = intent.args.factor ?? 1.15;
-      const w = whatIf(line, { station, factor, rolls: 80, horizon: 80 });
+      const w = whatIf(line, { station, factor, rolls: 180, horizon: 80 });
       const slower = Math.round((factor - 1) * 100);
       const stay = w.baseConstraint === w.scenarioConstraint;
       const verb = slower >= 0 ? `${slower}% slower` : `${Math.abs(slower)}% faster`;
@@ -173,7 +183,7 @@ export function runTool(line, intent) {
       break;
     }
     default: {
-      result = formatForecast(monteCarlo(line, { rolls: 120, horizon: 30, seed: 21 }));
+      result = formatForecast(monteCarlo(line, { rolls: 180, horizon: 30, seed: 21 }));
     }
   }
   const ms = (performance.now ? performance.now() : Date.now()) - t0;
@@ -197,7 +207,17 @@ export function ask(line, question) {
     runLine: formatRunLine(intent, out),
     answer: out.text,
     out,
+    promoteType: promoteType(intent.tool),
   };
+}
+
+function promoteType(tool) {
+  if (tool === "run_forecast") return "bottleneck";
+  if (tool === "what_if") return "what_if";
+  if (tool === "weld_status") return "weld_confirmed";
+  if (tool === "recommend_sensor" || tool === "estimate_dark") return "next_sensor";
+  if (tool === "bodies_at_risk") return "bodies_at_risk";
+  return null;
 }
 
 export { N };

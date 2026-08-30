@@ -31,6 +31,15 @@ import {
   whatIf,
 } from "../js/twin/engine.js";
 import { ask, parseIntent } from "../js/twin/copilot.js";
+import {
+  applySla,
+  auditRows,
+  decide,
+  freezeRule,
+  freshBoard,
+  propose,
+  shouldPropose,
+} from "../js/twin/tickets.js";
 
 describe("posterior beliefs", () => {
   it("starts from the plant standard time", () => {
@@ -250,8 +259,117 @@ describe("copilot is tool-calling only", () => {
     assert.match(a.runLine, /ms/);
   });
 
+  it("refuses PLC / interlock questions", () => {
+    const intent = parseIntent("Write a PLC setpoint to slow Station 3");
+    assert.equal(intent.tool, "refuse_plc");
+    const line = freshLine();
+    const a = ask(line, "Please close the loop and write the interlock");
+    assert.equal(a.intent.tool, "refuse_plc");
+    assert.match(a.answer, /No PLC/);
+  });
+
   it("sampleCycle stays positive", () => {
     const rng = mulberry32(99);
     for (let i = 0; i < 50; i++) assert.ok(sampleCycle(4, 0.45, rng) > 0);
+  });
+});
+
+describe("HITL tickets", () => {
+  it("only a human leaves proposed; dismiss needs a reason", () => {
+    const board = freshBoard();
+    const t = propose(board, { type: "bottleneck", severity: "act_now", station: 2, station_name: "S3", t: 20 });
+    assert.equal(t.state, "proposed");
+    assert.throws(() => decide(board, t.id, { verb: "dismiss", actor_role: "supervisor", t: 21 }));
+    decide(board, t.id, { verb: "dismiss", reason_code: "mix_shift", actor_role: "supervisor", t: 21 });
+    assert.equal(t.state, "dismissed");
+    assert.equal(t.decision, "dismiss");
+  });
+
+  it("dismissing a bottleneck does not drop at-risk body IDs", () => {
+    const line = freshLine();
+    applyScenario(line, "s3_slow_weld");
+    run(line, 80, mulberry32(21));
+    const before = bodiesAtRisk(line).map((b) => b.id).sort();
+    const board = freshBoard();
+    const t = propose(board, {
+      type: "bottleneck",
+      severity: "act_now",
+      station: 2,
+      station_name: "S3",
+      t: line.t,
+      body_ids: before,
+    });
+    decide(board, t.id, { verb: "dismiss", reason_code: "already_handled", actor_role: "supervisor", t: line.t });
+    const after = bodiesAtRisk(line).map((b) => b.id).sort();
+    assert.deepEqual(after, before);
+  });
+
+  it("SLA timeout defers act_now and never auto-accepts", () => {
+    const board = freshBoard();
+    const t = propose(board, { type: "bottleneck", severity: "act_now", station: 2, station_name: "S3", t: 0, sla: 60 });
+    applySla(board, 30);
+    assert.equal(t.state, "proposed");
+    applySla(board, 60);
+    assert.equal(t.state, "deferred");
+    assert.equal(t.reason_code, "sla_timeout");
+    assert.equal(t.decision, "defer");
+    assert.equal(board.missedSla, 1);
+  });
+
+  it("queue-for-window records the station without flipping sensed", () => {
+    const line = freshLine();
+    const sensed = line.stations.filter((s) => s.sensed).length;
+    const rec = recommendNextSensor(line);
+    const board = freshBoard();
+    const t = propose(board, {
+      type: "window_work",
+      severity: "watch",
+      station: rec.station,
+      station_name: rec.name,
+      t: 0,
+      sla: null,
+    });
+    decide(board, t.id, { verb: "accept", actor_role: "manager", t: 0 });
+    assert.ok(board.queuedWindows.includes(rec.name));
+    assert.equal(line.stations.filter((s) => s.sensed).length, sensed);
+    assert.equal(line.stations[rec.station].sensed, false);
+  });
+
+  it("freeze rule is printed and locked until n≥20", () => {
+    const line = freshLine();
+    const rule = freezeRule(summarizeShift(line));
+    assert.equal(rule.eligible, false);
+    assert.equal(rule.minN, 20);
+    assert.match(rule.copy, /n≥20|n>=20|n≥/);
+  });
+
+  it("AE freeze mutes confirm but not isolation watch", () => {
+    const line = freshLine();
+    applyScenario(line, "s3_slow_weld");
+    run(line, 140, mulberry32(14));
+    const live = scoreWeld(line);
+    line.aeFrozen = true;
+    const frozen = scoreWeld(line);
+    assert.equal(frozen.frozen, true);
+    assert.equal(frozen.confirmed, false);
+    assert.equal(frozen.confirmedRaw, live.confirmed || live.confirmedRaw);
+  });
+
+  it("does not double-propose an open bottleneck", () => {
+    const board = freshBoard();
+    propose(board, { type: "bottleneck", severity: "act_now", station: 2, station_name: "S3", t: 10 });
+    assert.equal(shouldPropose(board, "bottleneck", 2, 12), false);
+  });
+
+  it("audit export has the HITL columns", () => {
+    const board = freshBoard();
+    const t = propose(board, { type: "what_if", severity: "watch", t: 4, tool: "what_if", rolls: 180 });
+    decide(board, t.id, { verb: "accept", actor_role: "supervisor", t: 5 });
+    const row = auditRows(board)[0];
+    assert.equal(row.ticket_id, t.id);
+    assert.equal(row.verb, "accept");
+    assert.equal(row.actor_role, "supervisor");
+    assert.equal(row.evidence_tool, "what_if");
+    assert.equal(row.rolls, 180);
   });
 });

@@ -247,7 +247,7 @@ Manager sees these as **bottleneck grades**, separate from weld QC (Stage 2). Mi
 
 ### 5.5 Prototype today
 
-Alert card + inject/recover. **Missing HITL:** Accept/Defer/Dismiss on the bottleneck card. Spec for the next UI pass: those three verbs on `#alert`.
+Alert card + inject/recover. Bottleneck ticket bar: Accept / Defer / Dismiss + reason chips.
 
 ---
 
@@ -322,7 +322,7 @@ This is how “false alarms die” without a data-science intern on nights.
 
 ### 6.5 Prototype today
 
-Flags, at-risk list, confusion matrix, copilot `qc_grade`. **Missing HITL:** supervisor verbs on weld tickets; manager freeze control. Spec those as the Stage 2 UI.
+Flags, at-risk list, confusion matrix, copilot `qc_grade`. Supervisor verbs on weld tickets. Manager freeze control printed with the n≥20 / FA%>25 rule.
 
 ---
 
@@ -370,7 +370,7 @@ After install + 1 week of events: CI width on that station should drop. If it do
 
 ### 7.5 Prototype today
 
-Coverage map + next-sensor card. **Missing HITL:** queue-for-window button that creates `window_work` rather than pretending the clamp appears live (Recover is a **demo** of a window, not a sensor purchase).
+Coverage map + next-sensor card. **Queue for window** creates `window_work` and does not flip `sensed`. Recover is still a window demo for the S3 inject, not a sensor purchase.
 
 ---
 
@@ -417,7 +417,7 @@ sequenceDiagram
 
 ### 8.4 Prototype today
 
-Presets + Ask on the supervisor board. **Missing HITL:** `copilot_misread` chip; promoting a what-if into a Stage 1 ticket.
+Presets + Ask on the supervisor board. `copilot_misread` chip, Promote to ticket, PLC refuse.
 
 ---
 
@@ -447,7 +447,7 @@ sequenceDiagram
 
 ### 9.3 Prototype today
 
-Leadership cost card (3 × 12-station kit). **Missing HITL:** explicit go/no-go control; copy is narrative, which is correct for Round 2.
+Leadership cost card (3 × 12-station kit) plus Shop B **Accept / Defer / Dismiss** on a `site_go` ticket.
 
 ---
 
@@ -516,16 +516,16 @@ Enough to reconstruct a WEF-style “operator accepted or rejected the recommend
 
 ---
 
-## 13. What to implement next in the prototype (priority)
+## 13. Prototype HITL (implemented)
 
-The engine already produces evidence. HITL is the **verbs**.
+The engine produces evidence. HITL is the **verbs**. In Ops (`pages/ops.html`):
 
-1. **P0 — Supervisor ticket bar** on bottleneck + weld cards: Accept / Defer / Dismiss + reason chips; write to an in-memory `tickets[]` log (same pattern as `notes` in `ops-ui.js`).
-2. **P0 — Do not drop at-risk IDs** on dismiss of a bottleneck ticket.
-3. **P1 — Manager freeze** when FA% exceeds 25% with n≥20 (even if simulated n is small, show the control disabled with the rule printed).
-4. **P1 — Next sensor “Queue for window”** creates `window_work` instead of installing live.
-5. **P2 — Copilot `copilot_misread`** and “Promote to ticket.”
-6. **P2 — Export audit JSON** from Ops for the README (“this is the HITL log”).
+1. **P0 — Supervisor ticket bar** on bottleneck + weld cards: Accept / Defer / Dismiss + reason chips; in-memory `tickets[]` (`js/twin/tickets.js`).
+2. **P0 — At-risk IDs** are independent of bottleneck dismiss (bodies live on the line, not on the ticket).
+3. **P1 — Manager freeze** when FA% exceeds 25% with n≥20; otherwise the control is disabled and the rule is printed.
+4. **P1 — Next sensor “Queue for window”** creates `window_work` and does not flip `sensed`.
+5. **P2 — Copilot `copilot_misread`** and **Promote to ticket.** PLC/interlock questions are refused.
+6. **P2 — Export HITL audit JSON** from the Ops control bar.
 
 Out of scope for the hackathon (say so in the proposal): badge SSO, historian write, electronic work instructions, union-grade time-and-attendance.
 

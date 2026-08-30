@@ -19,6 +19,21 @@ import {
   tick,
 } from "./engine.js";
 import { ask } from "./copilot.js";
+import {
+  BOTTLENECK_PCT,
+  DEFER_REASONS,
+  DISMISS_REASONS,
+  REASON_CODES,
+  applySla,
+  auditRows,
+  decide,
+  freshBoard,
+  freezeRule,
+  logLine,
+  openTicket,
+  propose,
+  shouldPropose,
+} from "./tickets.js";
 
 const COLORS = {
   busy: "#188038",
@@ -40,6 +55,7 @@ const PRESETS = [
   "Is the weld drifting?",
   "Which bodies are at risk until inspect?",
   "What is the false alarm vs QC grade?",
+  "Write a PLC setpoint to slow Station 3",
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -56,6 +72,13 @@ let lastMcAt = -999;
 const fired = new Set();
 
 let notes = [];
+let board = freshBoard();
+let lastAsk = null;
+let pending = { slot: null, verb: null };
+
+function snapshotRiskIds() {
+  return bodiesAtRisk(line).map((b) => b.id).sort();
+}
 
 function log(msg, cls) {
   if (fired.has(msg)) return;
@@ -178,9 +201,9 @@ function paintRisks() {
     const p = mc.bottleneck[i] || 0;
     const fill = row.querySelector(".riskfill");
     fill.style.width = p + "%";
-    fill.style.background = p >= 50 ? "#D93025" : p >= 22 ? "#F29900" : "#9D00F5";
+    fill.style.background = p >= BOTTLENECK_PCT ? "#D93025" : p >= 22 ? "#F29900" : "#9D00F5";
     row.querySelector(".pc").textContent = p + "%";
-    row.classList.toggle("hot", top[0] && top[0].i === i && p >= 40);
+    row.classList.toggle("hot", top[0] && top[0].i === i && p >= BOTTLENECK_PCT);
   });
 }
 
@@ -199,8 +222,10 @@ function paintWeld() {
       .join(" ");
     poly.setAttribute("points", pts);
   }
-  $("fIF").classList.toggle("show", w.suspicious || w.confirmed);
+  $("fIF").classList.toggle("show", w.suspicious || w.confirmed || w.confirmedRaw);
   $("fAE").classList.toggle("show", w.confirmed);
+  if (w.frozen) $("fAE").textContent = "Autoencoder muted · manager freeze";
+  else $("fAE").textContent = "Autoencoder: drift confirmed";
 }
 
 function paintRiskBodies() {
@@ -231,6 +256,160 @@ function paintDark() {
         `<span>${s.mean.toFixed(1)} s · 80% CI ${s.lo.toFixed(1)}–${s.hi.toFixed(1)}</span></div>`
     )
     .join("");
+}
+
+function renderTicketBar(host, ticket, actor) {
+  if (!host) return;
+  if (!ticket) {
+    host.innerHTML = `<div class="idle">No open ticket. Twin proposes when evidence crosses the line.</div>`;
+    return;
+  }
+  const waiting = pending.slot === host.id && pending.verb;
+  const reasons = waiting
+    ? (pending.verb === "dismiss" ? DISMISS_REASONS : DEFER_REASONS)
+        .map((c) => `<button type="button" data-reason="${c}" title="${REASON_CODES[c]}">${c}</button>`)
+        .join("")
+    : "";
+  host.innerHTML =
+    `<div class="tid">${ticket.id} · ${ticket.type} · ${ticket.severity} · ${ticket.state}</div>` +
+    `<div class="dnote">${ticket.advisory}</div>` +
+    (ticket.state === "proposed" || ticket.state === "acked"
+      ? `<div class="verbs">
+          <button type="button" class="accept" data-verb="accept" data-id="${ticket.id}" data-actor="${actor}">Accept</button>
+          <button type="button" data-verb="defer" data-id="${ticket.id}" data-actor="${actor}">Defer</button>
+          <button type="button" class="dismiss" data-verb="dismiss" data-id="${ticket.id}" data-actor="${actor}">Dismiss</button>
+        </div>` + (reasons ? `<div class="reasons">${reasons}</div>` : "")
+      : `<div class="idle">${ticket.decision}${ticket.reason_code ? " · " + ticket.reason_code : ""}</div>`);
+}
+
+function paintHitl() {
+  const bn = openTicket(board, "bottleneck");
+  const weld =
+    openTicket(board, "weld_confirmed", 2) ||
+    openTicket(board, "weld_suspicious", 2);
+  renderTicketBar($("bn-ticket"), bn, "supervisor");
+  renderTicketBar($("weld-ticket"), weld, "supervisor");
+  renderTicketBar($("site-ticket"), openTicket(board, "site_go"), "leadership");
+  const logEl = $("hitl-log");
+  if (logEl) {
+    const rows = board.tickets.slice(-10).map((t) => {
+      const cls = t.state === "acted" ? "acted" : t.state === "dismissed" ? "dismissed" : t.state === "deferred" ? "deferred" : "";
+      return `<div class="${cls}">${logLine(t, t.decidedT ?? t.createdT)}</div>`;
+    });
+    logEl.innerHTML = rows.join("") || "<div>No tickets yet.</div>";
+  }
+  if ($("missed-sla")) $("missed-sla").textContent = String(board.missedSla);
+  if ($("queue-list")) {
+    $("queue-list").textContent = board.queuedWindows.length
+      ? "Queued (not installed): " + board.queuedWindows.join(", ")
+      : "Window backlog empty.";
+  }
+  if ($("site-go-state")) {
+    $("site-go-state").textContent = board.siteGo
+      ? `Leadership: ${board.siteGo}. Priors copy; freeze thresholds stay local.`
+      : "No leadership decision yet.";
+  }
+}
+
+function proposeTickets() {
+  const top = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
+  const pct = mc.bottleneck[top] || 0;
+  if (pct >= BOTTLENECK_PCT && shouldPropose(board, "bottleneck", top, line.t)) {
+    const meta = STATION_META[top];
+    propose(board, {
+      type: "bottleneck",
+      severity: "act_now",
+      station: top,
+      station_name: meta.name,
+      t: line.t,
+      tool: "run_forecast",
+      rolls: mc.rolls,
+      advisory: `${meta.name} (${meta.shop} ${meta.role}) is the constraint in ${pct}% of ${mc.rolls} rollouts. Advisory: pre-stage the downstream buffer and shift one operator. The twin does not write the cell.`,
+    });
+    log(`twin ALERT: ${meta.name} constraint · ticket proposed`, "tw");
+  }
+  const w = scoreWeld(line);
+  if (w.suspicious && shouldPropose(board, "weld_suspicious", 2, line.t)) {
+    propose(board, {
+      type: "weld_suspicious",
+      severity: "watch",
+      station: 2,
+      station_name: "S3",
+      t: line.t,
+      tool: "weld_status",
+      body_ids: snapshotRiskIds(),
+      advisory: "Isolation Forest: S3 suspicious. Watch the tips. Do not tear the line down.",
+    });
+    log("ticket weld_suspicious proposed", "tw");
+  }
+  if (w.confirmed && shouldPropose(board, "weld_confirmed", 2, line.t)) {
+    propose(board, {
+      type: "weld_confirmed",
+      severity: "act_now",
+      station: 2,
+      station_name: "S3",
+      t: line.t,
+      tool: "weld_status",
+      body_ids: snapshotRiskIds(),
+      advisory: "Autoencoder confirms drift. Babysit flagged body IDs until S12 inspect. Rule of ten: accept-on-confirmed is a 1× re-weld, not a 10× tear-up.",
+    });
+    log("ticket weld_confirmed proposed", "hot");
+  }
+  if (!openTicket(board, "site_go") && !board.siteGo && line.t >= 8) {
+    propose(board, {
+      type: "site_go",
+      severity: "info",
+      t: line.t,
+      sla: null,
+      advisory: "Copy the playbook to Shop B with Shop A priors as the Bayesian start. Dismiss if Shop B has no inspect gate.",
+    });
+  }
+}
+
+function onTicketClick(e) {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const host = e.currentTarget;
+  if (btn.dataset.reason) {
+    const { id, verb, actor } = pending;
+    if (!id || !verb) return;
+    applyDecision(id, verb, actor, btn.dataset.reason);
+    pending = { slot: null, verb: null };
+    return;
+  }
+  const verb = btn.dataset.verb;
+  const id = btn.dataset.id;
+  const actor = btn.dataset.actor;
+  if (!verb || !id) return;
+  if (verb === "accept") {
+    applyDecision(id, "accept", actor, null);
+    pending = { slot: null, verb: null };
+    return;
+  }
+  pending = { slot: host.id, verb, id, actor };
+  paintHitl();
+}
+
+function applyDecision(id, verb, actor, reason) {
+  const beforeRisk = snapshotRiskIds();
+  const ticket = decide(board, id, { verb, reason_code: reason, actor_role: actor, t: line.t });
+  if (ticket.type === "window_work" && verb === "accept") {
+    line.queuedWindows = board.queuedWindows.slice();
+  }
+  if (ticket.type === "window_work" && /freeze/i.test(ticket.advisory || "") && verb === "accept") {
+    line.aeFrozen = true;
+  }
+  log(logLine(ticket, line.t).replace(/^t=\s*\d+s\s+/, ""), ticket.state === "acted" ? "good" : ticket.state === "dismissed" ? "hot" : "tw");
+  if (ticket.type === "bottleneck") {
+    const afterRisk = snapshotRiskIds();
+    const lost = beforeRisk.filter((x) => !afterRisk.includes(x));
+    if (lost.length) log("HITL invariant broken: at-risk dropped", "hot");
+  }
+  paintHitl();
+  paintRiskBodies();
+  paintWeld();
+  paintManager();
+  paintLeadership();
 }
 
 function paintManager() {
@@ -267,6 +446,35 @@ function paintManager() {
     .join("");
   $("next-sensor").innerHTML =
     `<b>${rec.name}</b> · uncertainty cut ~${rec.cutPct}%` + `<p>${rec.reason}</p>`;
+  const rule = freezeRule(shift);
+  if ($("freeze-copy")) $("freeze-copy").textContent = rule.copy;
+  const freezeBtn = $("freeze-btn");
+  if (freezeBtn) {
+    freezeBtn.disabled = !rule.eligible || line.aeFrozen;
+    freezeBtn.textContent = line.aeFrozen
+      ? "AE confirm frozen until retune window"
+      : "Freeze AE confirm until retune window";
+  }
+  if ($("freeze-state")) {
+    $("freeze-state").textContent = line.aeFrozen
+      ? "Isolation Forest still shows watch. Autoencoder confirm is muted."
+      : "AE confirm is live.";
+  }
+  if ($("mapping")) {
+    $("mapping").innerHTML = cover.stations
+      .map((s) =>
+        s.dark
+          ? `<span class="mapchip dark">${s.name} unsigned · no sensor</span>`
+          : `<span class="mapchip ok">${s.name} mapping signed</span>`
+      )
+      .join("");
+  }
+  if ($("missed-sla")) $("missed-sla").textContent = String(board.missedSla);
+  if ($("queue-list")) {
+    $("queue-list").textContent = board.queuedWindows.length
+      ? "Queued (not installed): " + board.queuedWindows.join(", ")
+      : "Window backlog empty.";
+  }
 }
 
 function paintLeadership() {
@@ -309,7 +517,7 @@ function storyBeats() {
 function maybeMc() {
   if (line.t - lastMcAt < 10 && lastMcAt >= 0) return;
   lastMcAt = line.t;
-  mc = monteCarlo(line, { rolls: 48, horizon: 24, seed: 21 + line.t });
+  mc = monteCarlo(line, { rolls: 180, horizon: 24, seed: 21 + line.t });
 }
 
 function step() {
@@ -324,16 +532,20 @@ function step() {
   paintLane("ghost", ghostStatus, inferred, ghost);
   paintBuffers();
   maybeMc();
+  proposeTickets();
+  const timed = applySla(board, line.t);
+  timed.forEach((t) => log(`SLA timeout · ${t.id} deferred sla_timeout · never auto-accept`, "hot"));
   paintRisks();
   paintWeld();
   paintRiskBodies();
   paintDark();
   paintEvents();
   paintClock();
+  paintHitl();
   if (view === "manager") paintManager();
   if (view === "leadership") paintLeadership();
   const top = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
-  if (mc.bottleneck[top] >= 50 && line.injected.name === "s3_slow_weld") {
+  if (mc.bottleneck[top] >= BOTTLENECK_PCT && line.injected.name === "s3_slow_weld") {
     $("alert").classList.add("show");
   } else {
     $("alert").classList.remove("show");
@@ -348,6 +560,9 @@ function reset() {
   lastMcAt = -999;
   fired.clear();
   notes = [];
+  board = freshBoard();
+  lastAsk = null;
+  pending = { slot: null, verb: null };
   $("log").innerHTML = "";
   $("alert").classList.remove("show");
   $("fIF").classList.remove("show");
@@ -368,6 +583,7 @@ function reset() {
   paintClock();
   paintManager();
   paintLeadership();
+  paintHitl();
 }
 
 function runLoop() {
@@ -389,6 +605,7 @@ function setView(next) {
   if (legend) legend.hidden = !floor;
   if (view === "manager") paintManager();
   if (view === "leadership") paintLeadership();
+  paintHitl();
 }
 
 function submitAsk(q) {
@@ -396,6 +613,7 @@ function submitAsk(q) {
   if (!question) return;
   $("askq").value = question;
   const a = ask(line, question);
+  lastAsk = a;
   $("runline").textContent = a.runLine;
   $("answer").textContent = a.answer;
 }
@@ -423,11 +641,14 @@ $("inj").onclick = () => {
 };
 $("heal").onclick = () => {
   applyScenario(line, "recover");
+  line.aeFrozen = false;
   $("phase").textContent = "Maintenance window: weld cell re-tuned. Retrofit only when the line is already down.";
   log("maintenance window · S3 recovered · still no PLC write", "good");
   $("alert").classList.remove("show");
   paintClock();
   paintEvents();
+  paintWeld();
+  paintManager();
 };
 $("askgo").onclick = () => submitAsk();
 $("askq").addEventListener("keydown", (e) => {
@@ -438,6 +659,103 @@ $("presets").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (b) submitAsk(b.textContent);
 });
+
+["bn-ticket", "weld-ticket", "site-ticket"].forEach((id) => {
+  const el = $(id);
+  if (el) el.addEventListener("click", onTicketClick);
+});
+
+$("ask-promote").onclick = () => {
+  if (!lastAsk) {
+    $("answer").textContent = "Ask first, then promote the evidence to a ticket.";
+    return;
+  }
+  if (lastAsk.intent.tool === "refuse_plc") {
+    $("answer").textContent = lastAsk.answer + " Nothing to promote — no actuator ticket exists.";
+    return;
+  }
+  const type = lastAsk.promoteType || "what_if";
+  const station = lastAsk.intent.args?.station ?? null;
+  const meta = station != null ? STATION_META[station] : null;
+  const t = propose(board, {
+    type,
+    severity: type === "bottleneck" || type === "weld_confirmed" ? "act_now" : "watch",
+    station,
+    station_name: meta?.name || lastAsk.out?.data?.name || null,
+    t: line.t,
+    tool: lastAsk.intent.tool,
+    rolls: lastAsk.out.rolls,
+    ms: lastAsk.out.ms,
+    advisory: lastAsk.answer,
+  });
+  log(`promoted Ask → ${t.id} ${t.type}`, "tw");
+  paintHitl();
+};
+
+$("ask-misread").onclick = () => {
+  const t = propose(board, {
+    type: lastAsk?.promoteType || "what_if",
+    severity: "info",
+    t: line.t,
+    tool: lastAsk?.intent.tool || "run_forecast",
+    advisory: lastAsk?.answer || "Copilot answer marked as a misread.",
+  });
+  decide(board, t.id, { verb: "dismiss", reason_code: "copilot_misread", actor_role: "supervisor", t: line.t });
+  log("supervisor dismiss copilot_misread · re-ask", "hot");
+  paintHitl();
+};
+
+$("queue-sensor").onclick = () => {
+  const rec = recommendNextSensor(line);
+  const sensedBefore = line.stations.filter((s) => s.sensed).length;
+  const t = propose(board, {
+    type: "window_work",
+    severity: "watch",
+    station: rec.station,
+    station_name: rec.name,
+    t: line.t,
+    tool: "recommend_sensor",
+    sla: null,
+    advisory: `Queue ${rec.name} for the next maintenance window. ${rec.reason} Does not install live.`,
+  });
+  decide(board, t.id, { verb: "accept", actor_role: "manager", t: line.t });
+  const sensedAfter = line.stations.filter((s) => s.sensed).length;
+  if (sensedAfter !== sensedBefore) log("HITL invariant broken: live install", "hot");
+  log(`manager queued ${rec.name} for window · sensed count still ${sensedAfter}`, "good");
+  paintHitl();
+  paintManager();
+};
+
+$("freeze-btn").onclick = () => {
+  const rule = freezeRule(summarizeShift(line));
+  if (!rule.eligible || line.aeFrozen) return;
+  const t = propose(board, {
+    type: "window_work",
+    severity: "watch",
+    station: 2,
+    station_name: "S3",
+    t: line.t,
+    sla: null,
+    advisory: "freeze AE confirm until retune window. Isolation Forest remains a watch.",
+  });
+  decide(board, t.id, { verb: "accept", actor_role: "manager", t: line.t });
+  line.aeFrozen = true;
+  log("manager freeze AE confirm · IF still watch", "tw");
+  paintWeld();
+  paintHitl();
+  paintManager();
+};
+
+$("export-audit").onclick = () => {
+  const rows = auditRows(board);
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "hitl-audit.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  log(`exported ${rows.length} HITL audit rows`, "good");
+};
 
 document.addEventListener("keydown", (e) => {
   if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;

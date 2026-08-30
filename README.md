@@ -9,6 +9,7 @@ A **clip-on advisory twin** for mixed-model vehicle assembly. Round 1 was a five
 | Business proposal | [PROPOSAL.md](PROPOSAL.md) |
 | Stage-wise product PRD | [docs/PRD.md](docs/PRD.md) |
 | HITL PRD (tickets and verbs) | [docs/HITL-PRD.md](docs/HITL-PRD.md) |
+| Demo walkthrough script | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) |
 | Working prototype | Dashboard chapter **06 · Ops**, or open `pages/ops.html` |
 | Demo video | [docs/demo.mp4](docs/demo.mp4) (also attached on the PR) |
 | Tests | `npm test` |
@@ -74,11 +75,13 @@ Static site. Vercel serves the project root; `vercel.json` sets `framework` to n
 index.html            story dashboard
 pages/                opening, camera, live-twin, architecture, setup, ops
 js/twin/engine.js     discrete-event twin
+js/twin/tickets.js    HITL tickets (propose / accept / defer / dismiss)
 js/twin/copilot.js    tool-calling copilot
 js/twin/ops-ui.js     three-view UI
 test/twin.test.js
 PROPOSAL.md
 docs/PRD.md            stage-wise product flows
 docs/HITL-PRD.md       Accept / Defer / Dismiss
+docs/WALKTHROUGH.md    demo click script
 docs/demo.mp4
 ```

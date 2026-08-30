@@ -126,6 +126,27 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
 .askrow input{flex:1;border:1px solid var(--line);border-radius:99px;padding:10px 14px;font:inherit;min-height:42px}
 #runline{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet);margin:8px 0 4px;min-height:16px}
 #answer{font-size:13.5px;line-height:1.55}
+.ticket-bar{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.ticket-bar .tid{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--violet);margin-bottom:6px}
+.ticket-bar .idle{font-size:12px;color:var(--muted)}
+.verbs,.reasons{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.verbs button,.reasons button,.hitl-btn{
+  font-family:Inter,sans-serif;font-size:12px;font-weight:500;padding:8px 12px;min-height:40px;
+  border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.verbs button.accept{border-color:var(--green);color:var(--green)}
+.verbs button.dismiss{border-color:var(--red);color:var(--red)}
+.reasons button.on,.hitl-btn.on{background:var(--violet);color:#fff;border-color:var(--violet)}
+.verbs button:disabled,.hitl-btn:disabled{opacity:.45;cursor:not-allowed}
+.hitl-log{font-family:"IBM Plex Mono",monospace;font-size:10.5px;line-height:1.8;color:var(--muted);
+  max-height:140px;overflow:auto}
+.hitl-log .acted{color:var(--green)} .hitl-log .dismissed{color:var(--red)} .hitl-log .deferred{color:var(--amber)}
+.freeze-copy{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0}
+.queue-list{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet);margin-top:8px}
+.mapgrid{display:flex;flex-wrap:wrap;gap:6px}
+.mapchip{font-size:11px;padding:6px 8px;border-radius:8px;border:1px solid var(--line)}
+.mapchip.ok{background:#F3FBF5} .mapchip.dark{background:var(--wash)}
+#audit-preview{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);
+  max-height:88px;overflow:auto;white-space:pre-wrap;margin-top:8px}
 @media (prefers-reduced-motion: reduce){ .riskfill,.alert,.dflag{transition:none} }
 </style>
 </head>
@@ -164,6 +185,7 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
         <div id="risks"></div>
         <div class="alert" id="alert">
           <div><b>Twin alert.</b> Constraint forming. Advisory: pre-stage the downstream buffer and hold a retrofit for the maintenance window. The twin does not write the cell.</div>
+          <div class="ticket-bar" id="bn-ticket" data-slot="bottleneck"></div>
         </div>
       </div>
       <div class="card">
@@ -174,11 +196,17 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
         </div>
         <span class="dflag if" id="fIF">Isolation Forest: suspicious</span>
         <span class="dflag ae" id="fAE">Autoencoder: drift confirmed</span>
-        <div class="dnote">Early weld defects only surface at S12 inspect. Flagged bodies stay on the “at risk” list until QC grades them.</div>
+        <div class="dnote">Early weld defects only surface at S12 inspect. Flagged bodies stay on the “at risk” list until QC grades them. Dismissing a bottleneck ticket does <b>not</b> drop those IDs.</div>
+        <div class="ticket-bar" id="weld-ticket" data-slot="weld"></div>
       </div>
       <div class="card">
         <h3>Event log</h3>
         <div id="log"></div>
+      </div>
+      <div class="card">
+        <h3>HITL tickets</h3>
+        <div class="dnote">Twin proposes. A named person Accepts, Defers, or Dismisses. Silent expiry is a missed SLA, never a fake accept.</div>
+        <div class="hitl-log" id="hitl-log"></div>
       </div>
       <div class="card">
         <h3>Dark stations · 80% CI</h3>
@@ -197,6 +225,10 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
       </div>
       <div id="runline"></div>
       <div id="answer"></div>
+      <div class="verbs" style="margin-top:10px">
+        <button type="button" class="hitl-btn" id="ask-promote">Promote to ticket</button>
+        <button type="button" class="hitl-btn dismiss" id="ask-misread">Dismiss · copilot_misread</button>
+      </div>
     </div>
   </div>
 
@@ -220,14 +252,25 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
           <div class="h">Clear</div><div>FN <b id="qc-fn">0</b></div><div>TN <b id="qc-tn">0</b></div>
         </div>
         <p class="dnote">False-alarm rate <b id="qc-fa">0%</b> of alerts · catch rate <b id="qc-catch">0%</b> of true weld defects. Every Isolation Forest / autoencoder flag is graded at S12 so false alarms die instead of piling up.</p>
+        <p class="dnote">Missed <code>act_now</code> SLAs this run: <b id="missed-sla">0</b> (never auto-accept).</p>
       </div>
       <div class="card">
-        <h3>Sensor coverage map</h3>
+        <h3>Detector freeze</h3>
+        <p class="freeze-copy" id="freeze-copy"></p>
+        <button type="button" class="hitl-btn" id="freeze-btn">Freeze AE confirm until retune window</button>
+        <p class="dnote" id="freeze-state">AE confirm is live.</p>
+      </div>
+      <div class="card">
+        <h3>Sensor coverage map · Stage 0 signed</h3>
         <div class="cover" id="cover-map"></div>
+        <div class="mapgrid" id="mapping" style="margin-top:8px"></div>
       </div>
       <div class="card">
-        <h3>Next sensor · uncertainty cut</h3>
+        <h3>Next sensor · queue for window</h3>
         <div id="next-sensor"></div>
+        <button type="button" class="hitl-btn" id="queue-sensor">Queue for maintenance window</button>
+        <div class="queue-list" id="queue-list"></div>
+        <p class="dnote">Does not flip a station to sensed live. Hardware waits for a window the plant already has.</p>
       </div>
     </div>
   </div>
@@ -256,6 +299,12 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
         <b>Delayed defects</b> → bodies stay on the at-risk list from S3 to S12.<br>
         <b>IT / OT freeze</b> → advisory only; retrofits wait for a maintenance window.</p>
       </div>
+      <div class="card prose">
+        <h3>Shop B go / no-go</h3>
+        <p>Copy the <b>playbook and Bayesian priors</b>, not a frozen model. Shop B runs its own Stage 0–2 and its own freeze threshold. Dismiss if the site has no inspect gate to grade welds.</p>
+        <div class="ticket-bar" id="site-ticket" data-slot="site_go"></div>
+        <p class="dnote" id="site-go-state">No leadership decision yet.</p>
+      </div>
       <div class="card">
         <h3>Assumptions (stated, not hidden)</h3>
         <div class="assumptions">
@@ -273,6 +322,7 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
     <button class="act" type="button" id="sp">Speed 1x</button>
     <button class="act" type="button" id="inj">Inject S3 slow + weld drift</button>
     <button class="act" type="button" id="heal">Recover in maintenance window</button>
+    <button class="act" type="button" id="export-audit">Export HITL audit JSON</button>
     <span id="clock">t = 0 s</span>
   </div>
 </div>

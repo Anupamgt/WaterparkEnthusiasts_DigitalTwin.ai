@@ -146,6 +146,8 @@ export function freshLine(opts = {}) {
     weld: [],
     qc: emptyQc(),
     injected: { slow: null, drift: false, name: "baseline" },
+    aeFrozen: false,
+    queuedWindows: [],
   };
 }
 
@@ -185,6 +187,8 @@ export function cloneLine(line) {
       drift: line.injected.drift,
       slow: line.injected.slow ? { ...line.injected.slow } : null,
     },
+    aeFrozen: !!line.aeFrozen,
+    queuedWindows: (line.queuedWindows || []).slice(),
   };
 }
 
@@ -316,7 +320,7 @@ export function tick(line, rng, record = true) {
       if (line.weld.length > 80) line.weld.shift();
       if (amps < 34) s.body.weldDefect = true;
       const scored = scoreWeld(line);
-      if (scored.suspicious || scored.confirmed) s.body.weldFlagged = true;
+      if (scored.suspicious || scored.confirmedRaw) s.body.weldFlagged = true;
     }
   }
 
@@ -526,7 +530,7 @@ export function autoencoderError(window, normalMean = 46) {
 export function scoreWeld(line) {
   const samples = line.weld;
   if (samples.length < 8) {
-    return { isolation: 0, ae: 0, suspicious: false, confirmed: false };
+    return { isolation: 0, ae: 0, suspicious: false, confirmed: false, confirmedRaw: false, frozen: !!line.aeFrozen };
   }
   const latest = samples[samples.length - 1];
   const isolation = isolationScore(latest, samples.slice(0, Math.max(8, samples.length - 8)));
@@ -536,8 +540,16 @@ export function scoreWeld(line) {
   const ae = autoencoderError(recent, normalMean);
   const recentMean = recent.reduce((a, b) => a + b, 0) / recent.length;
   const suspicious = isolation > 0.55 || Math.abs(latest - normalMean) > 8;
-  const confirmed = ae > 40 || Math.abs(recentMean - normalMean) > 10;
-  return { isolation, ae, suspicious, confirmed };
+  const confirmedRaw = ae > 40 || Math.abs(recentMean - normalMean) > 10;
+  const confirmed = confirmedRaw && !line.aeFrozen;
+  return {
+    isolation,
+    ae,
+    suspicious,
+    confirmed,
+    confirmedRaw,
+    frozen: !!line.aeFrozen,
+  };
 }
 
 export function bodiesAtRisk(line) {

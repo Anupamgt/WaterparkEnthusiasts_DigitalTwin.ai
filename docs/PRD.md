@@ -329,7 +329,7 @@ Keep **bottleneck grades** off the weld confusion matrix. Mixing them is how pla
 
 ### 5.8 Prototype
 
-Supervisor board: shops, ghost lane, bars, alert, inject/recover, pause/speed. **Gap vs this PRD:** Accept/Defer/Dismiss on `#alert` (HITL P0).
+Supervisor board: shops, ghost lane, bars, alert **with Accept/Defer/Dismiss**, inject/recover, pause/speed.
 
 ---
 
@@ -437,7 +437,7 @@ manager KPI = fp / (tp+fp) when (tp+fp)>0
 
 ### 6.8 Prototype
 
-Weld wave, IF/AE flags, at-risk cards, QC grid, copilot `qc_grade` / `weld_status` / `bodies_at_risk`. **Gap:** supervisor verbs on weld tickets; manager freeze control.
+Weld wave, IF/AE flags, at-risk cards, QC grid, copilot `qc_grade` / `weld_status` / `bodies_at_risk`. Supervisor verbs on weld tickets. Manager freeze control is shown with the FA% / n≥20 rule (disabled until eligible).
 
 ---
 
@@ -512,7 +512,7 @@ Supervisor **cannot spend**. They may leave a note `dark_guess` if they already 
 
 ### 7.7 Prototype
 
-Hatched chips, CI on supervisor dark rows, coverage map, next-sensor prose. **Gap:** Queue-for-window button (HITL P1).
+Hatched chips, CI on supervisor dark rows, coverage map, next-sensor prose, **Queue for maintenance window** (does not flip `sensed`).
 
 ---
 
@@ -576,7 +576,7 @@ sequenceDiagram
 
 ### 8.6 Prototype
 
-Presets + input on supervisor board. **Gap:** `copilot_misread` chip; Promote to ticket.
+Presets + input on supervisor board. **Promote to ticket**, `copilot_misread`, and a canned PLC refuse.
 
 ---
 
@@ -616,7 +616,7 @@ sequenceDiagram
 
 ### 9.5 Prototype
 
-Leadership KPIs + prose. Correct for R2 that copy is the product, not a multi-tenant admin.
+Leadership KPIs + prose + Shop B go/no-go ticket.
 
 ---
 
