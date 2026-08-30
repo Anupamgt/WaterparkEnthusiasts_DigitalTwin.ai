@@ -329,7 +329,7 @@ Keep **bottleneck grades** off the weld confusion matrix. Mixing them is how pla
 
 ### 5.8 Prototype
 
-Supervisor board: shops, ghost lane, bars, alert **with Accept/Defer/Dismiss**, inject/recover, pause/speed.
+Supervisor board: shops, ghost lane, bars, alert **with Accept/Defer/Dismiss**, inject/recover, pause/speed. Monte Carlo ranks **S2–S12** (S1 infinite supply is not a constraint). Stage 1 bottleneck grades (TP/FP/FN) sit on the manager desk, separate from weld QC. Defer suppresses repeats unless rank worsens 15pp. Three dismisses of the same type+station open a manager `detectors_vs_floor` ticket. The Live-twin story chapter runs this same 12-station engine.
 
 ---
 
@@ -730,7 +730,7 @@ Ops UI:
 - U4. At-risk list until inspect; QC grid on manager.
 - U5. Ask prints `▸ twin:` evidence line.
 
-HITL (spec’d, partial in UI): see [HITL-PRD.md](HITL-PRD.md) §13.
+HITL (implemented in Ops): see [HITL-PRD.md](HITL-PRD.md) §13.
 
 ---
 

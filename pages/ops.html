@@ -253,12 +253,20 @@ button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);c
         </div>
         <p class="dnote">False-alarm rate <b id="qc-fa">0%</b> of alerts · catch rate <b id="qc-catch">0%</b> of true weld defects. Every Isolation Forest / autoencoder flag is graded at S12 so false alarms die instead of piling up.</p>
         <p class="dnote">Missed <code>act_now</code> SLAs this run: <b id="missed-sla">0</b> (never auto-accept).</p>
+        <h3 style="margin-top:14px">Bottleneck grades · Stage 1 (not weld QC)</h3>
+        <div class="qcgrid">
+          <div class="h"></div><div class="h">Starved / won</div><div class="h">Stayed green</div>
+          <div class="h">Ticket</div><div>TP <b id="bn-tp">0</b></div><div>FP <b id="bn-fp">0</b></div>
+          <div class="h">No ticket</div><div>FN <b id="bn-fn">0</b></div><div>TN <b id="bn-tn">0</b></div>
+        </div>
+        <p class="dnote">Graded after the +20 s horizon. Kept off the weld confusion matrix.</p>
       </div>
       <div class="card">
         <h3>Detector freeze</h3>
         <p class="freeze-copy" id="freeze-copy"></p>
         <button type="button" class="hitl-btn" id="freeze-btn">Freeze AE confirm until retune window</button>
         <p class="dnote" id="freeze-state">AE confirm is live.</p>
+        <div class="ticket-bar" id="disagree-ticket" data-slot="detectors_vs_floor"></div>
       </div>
       <div class="card">
         <h3>Sensor coverage map · Stage 0 signed</h3>

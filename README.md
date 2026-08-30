@@ -63,7 +63,7 @@ On Ops, one engine feeds three views:
 
 At t ≈ 16 s the scenario injector applies **S3 slow + weld drift**. S3 defects only surface when the body reaches **S12 inspect**. Use **Recover in maintenance window** to show that hardware changes are not live PLC writes.
 
-The five-station **Live twin** chapter is still the pedagogical animation from Round 1. The Round 2 predictive mechanism is Ops.
+The five-station **Live twin** chapter now runs the same 12-station engine as Ops (scripted inject / recover so the story stays watchable). HITL Accept / Defer / Dismiss lives on **Ops**.
 
 ## Deploy
 
@@ -78,6 +78,7 @@ js/twin/engine.js     discrete-event twin
 js/twin/tickets.js    HITL tickets (propose / accept / defer / dismiss)
 js/twin/copilot.js    tool-calling copilot
 js/twin/ops-ui.js     three-view UI
+js/twin/live-story.js Live-twin chapter (same engine, scripted story)
 test/twin.test.js
 PROPOSAL.md
 docs/PRD.md            stage-wise product flows

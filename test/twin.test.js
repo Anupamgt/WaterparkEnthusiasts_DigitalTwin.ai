@@ -10,8 +10,10 @@ import {
   INSPECT_INDEX,
   activePeriodRanks,
   applyScenario,
+  argmaxShare,
   autoencoderError,
   bodiesAtRisk,
+  bottleneckOutcome,
   cloneLine,
   coverageMap,
   forecastGhost,
@@ -35,9 +37,12 @@ import {
   applySla,
   auditRows,
   decide,
+  dismissCount,
   freezeRule,
   freshBoard,
+  gradeBottlenecks,
   propose,
+  shouldOpenDisagreement,
   shouldPropose,
 } from "../js/twin/tickets.js";
 
@@ -129,6 +134,16 @@ describe("forecasting", () => {
     run(line, 120, mulberry32(6));
     const ranks = activePeriodRanks(line);
     assert.equal(ranks[0].name, "S3");
+  });
+
+  it("does not let infinite-supply S1 win Monte Carlo after S3 inject", () => {
+    const line = freshLine();
+    applyScenario(line, "s3_slow_weld");
+    run(line, 80, mulberry32(6));
+    const mc = monteCarlo(line, { rolls: 80, horizon: 24, seed: 9 });
+    const top = argmaxShare(mc.bottleneck);
+    assert.equal(STATION_META[top].name, "S3", `winner S${top + 1} shares ${mc.bottleneck.join(",")}`);
+    assert.ok(mc.bottleneck[0] < mc.bottleneck[2], `S1 ${mc.bottleneck[0]} vs S3 ${mc.bottleneck[2]}`);
   });
 
   it("monte carlo probabilities sum near 100", () => {
@@ -359,6 +374,43 @@ describe("HITL tickets", () => {
     const board = freshBoard();
     propose(board, { type: "bottleneck", severity: "act_now", station: 2, station_name: "S3", t: 10 });
     assert.equal(shouldPropose(board, "bottleneck", 2, 12), false);
+  });
+
+  it("re-fires a deferred bottleneck only if rank worsens 15pp", () => {
+    const board = freshBoard();
+    const t = propose(board, {
+      type: "bottleneck",
+      severity: "act_now",
+      station: 2,
+      station_name: "S3",
+      t: 10,
+      evidence: { pct: 62 },
+    });
+    decide(board, t.id, { verb: "defer", reason_code: "already_handled", actor_role: "supervisor", t: 11 });
+    assert.equal(shouldPropose(board, "bottleneck", 2, 40, { pct: 70 }), false);
+    assert.equal(shouldPropose(board, "bottleneck", 2, 40, { pct: 80 }), true);
+  });
+
+  it("opens detectors-vs-floor after three dismisses of the same type+station", () => {
+    const board = freshBoard();
+    for (let i = 0; i < 3; i++) {
+      const t = propose(board, { type: "weld_suspicious", station: 2, station_name: "S3", t: i });
+      decide(board, t.id, { verb: "dismiss", reason_code: "dressing_cycle", actor_role: "supervisor", t: i });
+    }
+    assert.equal(dismissCount(board, "weld_suspicious", 2), 3);
+    assert.equal(shouldOpenDisagreement(board, board.tickets[2]), true);
+  });
+
+  it("grades a bottleneck ticket after the horizon, separate from weld QC", () => {
+    const line = freshLine();
+    applyScenario(line, "s3_slow_weld");
+    run(line, 80, mulberry32(6));
+    const board = freshBoard();
+    const t = propose(board, { type: "bottleneck", station: 2, station_name: "S3", t: 10 });
+    gradeBottlenecks(board, (station) => bottleneckOutcome(line, station).hit, 40, false);
+    assert.ok(t.grade === "tp" || t.grade === "fp", t.grade);
+    assert.equal(board.bnGrade.tp + board.bnGrade.fp, 1);
+    assert.equal(board.bnGrade.fn, 0);
   });
 
   it("audit export has the HITL columns", () => {

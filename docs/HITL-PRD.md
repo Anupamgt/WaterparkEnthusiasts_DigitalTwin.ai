@@ -524,8 +524,11 @@ The engine produces evidence. HITL is the **verbs**. In Ops (`pages/ops.html`):
 2. **P0 — At-risk IDs** are independent of bottleneck dismiss (bodies live on the line, not on the ticket).
 3. **P1 — Manager freeze** when FA% exceeds 25% with n≥20; otherwise the control is disabled and the rule is printed.
 4. **P1 — Next sensor “Queue for window”** creates `window_work` and does not flip `sensed`.
-5. **P2 — Copilot `copilot_misread`** and **Promote to ticket.** PLC/interlock questions are refused.
-6. **P2 — Export HITL audit JSON** from the Ops control bar.
+5. **P1 — Bottleneck grades** after the +20 s horizon, kept off the weld QC matrix. Defer re-fires only if rank worsens 15pp. Three dismisses of the same type+station open `detectors_vs_floor`.
+6. **P2 — Copilot `copilot_misread`** and **Promote to ticket.** PLC/interlock questions are refused.
+7. **P2 — Export HITL audit JSON** from the Ops control bar.
+
+The Live-twin chapter (`pages/live-twin.html`) now uses the same 12-station engine with a scripted inject/recover loop. HITL verbs stay on Ops.
 
 Out of scope for the hackathon (say so in the proposal): badge SSO, historian write, electronic work instructions, union-grade time-and-attendance.
 

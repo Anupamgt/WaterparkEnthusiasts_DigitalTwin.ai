@@ -345,8 +345,9 @@ export function stationStatus(line) {
 }
 
 export function activePeriodRanks(line) {
-  // Active-period method: the current uninterrupted busy streak, not a
-  // historical max. S1's infinite supply would otherwise always "win".
+  // Active-period method: current uninterrupted busy streak, not utilization
+  // and not a historical max. S1 has infinite supply (stand-in for a full
+  // body shop) so it is never the constraint — rank stations S2–S12 first.
   const scored = line.stations.map((s, i) => ({
     i,
     name: s.name,
@@ -354,8 +355,18 @@ export function activePeriodRanks(line) {
     active: s.activeTicks,
     longest: s.longestActive,
   }));
-  scored.sort((a, b) => b.active - a.active || b.longest - a.longest);
-  return scored;
+  const rest = scored.filter((s) => s.i > 0);
+  rest.sort((a, b) => b.active - a.active || b.longest - a.longest);
+  const s1 = scored.find((s) => s.i === 0);
+  return s1 ? rest.concat([s1]) : rest;
+}
+
+/** Constraint among S2–S12. Returns null while the line is still filling. */
+export function constraintCandidate(line) {
+  const ranks = activePeriodRanks(line);
+  const top = ranks.find((s) => s.i > 0);
+  if (!top || top.active <= 0) return null;
+  return top;
 }
 
 export function monteCarlo(line, opts = {}) {
@@ -374,11 +385,11 @@ export function monteCarlo(line, opts = {}) {
     const hitAt = Array(n).fill(null);
     for (let k = 0; k < horizon; k++) {
       tick(c, rng, false);
-      const ranks = activePeriodRanks(c);
-      if (ranks[0].active >= 8 && hitAt[ranks[0].i] == null) hitAt[ranks[0].i] = k + 1;
+      const winner = constraintCandidate(c);
+      if (winner && winner.active >= 8 && hitAt[winner.i] == null) hitAt[winner.i] = k + 1;
     }
-    const ranks = activePeriodRanks(c);
-    counts[ranks[0].i] += 1;
+    const winner = constraintCandidate(c);
+    if (winner) counts[winner.i] += 1;
     throughputs.push((c.completed - startDone) / Math.max(1, horizon));
     hitAt.forEach((h, i) => {
       if (h != null) {
@@ -409,9 +420,21 @@ export function whatIf(line, { station, factor, rolls = 120, horizon = 120, seed
   };
   const scenario = monteCarlo(alt, { rolls, horizon, seed: seed + 1 });
   const drop = base.meanTp <= 0 ? 0 : (1 - scenario.meanTp / base.meanTp) * 100;
-  const baseConstraint = base.bottleneck.indexOf(Math.max(...base.bottleneck));
-  const scenarioConstraint = scenario.bottleneck.indexOf(Math.max(...scenario.bottleneck));
+  const baseConstraint = argmaxShare(base.bottleneck);
+  const scenarioConstraint = argmaxShare(scenario.bottleneck);
   return { base, scenario, dropPct: drop, baseConstraint, scenarioConstraint, station, factor, rolls, horizon };
+}
+
+export function argmaxShare(shares) {
+  let best = -1;
+  let idx = 0;
+  for (let i = 0; i < shares.length; i++) {
+    if (shares[i] > best && i > 0) {
+      best = shares[i];
+      idx = i;
+    }
+  }
+  return idx;
 }
 
 export function inferDark(line) {
@@ -469,7 +492,7 @@ export function recommendNextSensor(line) {
   const dark = inferred.filter((s) => s.dark);
   if (dark.length === 0) {
     const mc = monteCarlo(line, { rolls: 64, horizon: 40, seed: 3 });
-    const i = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
+    const i = argmaxShare(mc.bottleneck);
     return {
       station: i,
       name: STATION_META[i].name,
@@ -605,6 +628,15 @@ export function summarizeShift(line) {
     catchPct: defects ? Math.round((100 * qc.tp) / defects) : 0,
     graded,
   };
+}
+
+/** Stage 1 grade: did the predicted constraint actually bite? */
+export function bottleneckOutcome(line, station) {
+  const statuses = stationStatus(line);
+  const downstreamStarved = statuses.slice(station + 1).some((st) => st === "starved");
+  const top = constraintCandidate(line);
+  const won = top && top.i === station;
+  return { downstreamStarved, won, hit: !!(downstreamStarved || won) };
 }
 
 export function leadershipCase(line) {

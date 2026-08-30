@@ -4,7 +4,9 @@ import {
   SHOPS,
   STATION_META,
   applyScenario,
+  argmaxShare,
   bodiesAtRisk,
+  bottleneckOutcome,
   coverageMap,
   forecastGhost,
   freshLine,
@@ -29,9 +31,11 @@ import {
   decide,
   freshBoard,
   freezeRule,
+  gradeBottlenecks,
   logLine,
   openTicket,
   propose,
+  shouldOpenDisagreement,
   shouldPropose,
 } from "./tickets.js";
 
@@ -195,7 +199,7 @@ function paintRisks() {
     ).join("");
     host.dataset.ready = "1";
   }
-  const top = mc.bottleneck.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
+  const topI = argmaxShare(mc.bottleneck);
   host.querySelectorAll(".riskrow").forEach((row) => {
     const i = Number(row.dataset.i);
     const p = mc.bottleneck[i] || 0;
@@ -203,7 +207,7 @@ function paintRisks() {
     fill.style.width = p + "%";
     fill.style.background = p >= BOTTLENECK_PCT ? "#D93025" : p >= 22 ? "#F29900" : "#9D00F5";
     row.querySelector(".pc").textContent = p + "%";
-    row.classList.toggle("hot", top[0] && top[0].i === i && p >= BOTTLENECK_PCT);
+    row.classList.toggle("hot", i === topI && p >= BOTTLENECK_PCT);
   });
 }
 
@@ -290,6 +294,7 @@ function paintHitl() {
   renderTicketBar($("bn-ticket"), bn, "supervisor");
   renderTicketBar($("weld-ticket"), weld, "supervisor");
   renderTicketBar($("site-ticket"), openTicket(board, "site_go"), "leadership");
+  renderTicketBar($("disagree-ticket"), openTicket(board, "detectors_vs_floor"), "manager");
   const logEl = $("hitl-log");
   if (logEl) {
     const rows = board.tickets.slice(-10).map((t) => {
@@ -312,9 +317,11 @@ function paintHitl() {
 }
 
 function proposeTickets() {
-  const top = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
+  const top = argmaxShare(mc.bottleneck);
   const pct = mc.bottleneck[top] || 0;
-  if (pct >= BOTTLENECK_PCT && shouldPropose(board, "bottleneck", top, line.t)) {
+  const firstHit = mc.when[top] != null && (mc.conf[top] || 0) >= 50;
+  const actNow = pct >= BOTTLENECK_PCT || (firstHit && pct >= 40);
+  if (line.t >= 8 && actNow && shouldPropose(board, "bottleneck", top, line.t, { pct })) {
     const meta = STATION_META[top];
     propose(board, {
       type: "bottleneck",
@@ -324,7 +331,8 @@ function proposeTickets() {
       t: line.t,
       tool: "run_forecast",
       rolls: mc.rolls,
-      advisory: `${meta.name} (${meta.shop} ${meta.role}) is the constraint in ${pct}% of ${mc.rolls} rollouts. Advisory: pre-stage the downstream buffer and shift one operator. The twin does not write the cell.`,
+      evidence: { pct, when: mc.when[top], conf: mc.conf[top] },
+      advisory: `${meta.name} (${meta.shop} ${meta.role}) is the constraint in ${pct}% of ${mc.rolls} rollouts${firstHit && pct < BOTTLENECK_PCT ? ` · first-hit inside the ${mc.horizon}s horizon` : ""}. Advisory: pre-stage the downstream buffer and shift one operator. The twin does not write the cell.`,
     });
     log(`twin ALERT: ${meta.name} constraint · ticket proposed`, "tw");
   }
@@ -400,6 +408,18 @@ function applyDecision(id, verb, actor, reason) {
     line.aeFrozen = true;
   }
   log(logLine(ticket, line.t).replace(/^t=\s*\d+s\s+/, ""), ticket.state === "acted" ? "good" : ticket.state === "dismissed" ? "hot" : "tw");
+  if (shouldOpenDisagreement(board, ticket) && shouldPropose(board, "detectors_vs_floor", ticket.station, line.t)) {
+    propose(board, {
+      type: "detectors_vs_floor",
+      severity: "watch",
+      station: ticket.station,
+      station_name: ticket.station_name,
+      t: line.t,
+      sla: null,
+      advisory: `Three dismisses of ${ticket.type} on ${ticket.station_name || "the line"} this shift. Manager review: detectors vs floor — retune in a window, do not page nights.`,
+    });
+    log("manager ticket: detectors vs floor disagreement", "hot");
+  }
   if (ticket.type === "bottleneck") {
     const afterRisk = snapshotRiskIds();
     const lost = beforeRisk.filter((x) => !afterRisk.includes(x));
@@ -475,6 +495,7 @@ function paintManager() {
       ? "Queued (not installed): " + board.queuedWindows.join(", ")
       : "Window backlog empty.";
   }
+  paintBnGrade();
 }
 
 function paintLeadership() {
@@ -486,10 +507,18 @@ function paintLeadership() {
   $("lead-three").textContent = "₹" + (L.threeSiteInr / 100000).toFixed(2) + " lakh";
   $("lead-jph").textContent = shift.jph.toFixed(0) + " bodies/h";
   $("lead-qc").textContent = `catch ${shift.catchPct}% · false alarms ${shift.falseAlarmPct}%`;
-  const i = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
+  const i = argmaxShare(mc.bottleneck);
   $("lead-constraint").textContent = STATION_META[i]
     ? `${STATION_META[i].name} ${STATION_META[i].shop} · ${mc.bottleneck[i] || 0}% of rollouts`
     : "—";
+}
+
+function paintBnGrade() {
+  const g = board.bnGrade;
+  if ($("bn-tp")) $("bn-tp").textContent = String(g.tp);
+  if ($("bn-fp")) $("bn-fp").textContent = String(g.fp);
+  if ($("bn-fn")) $("bn-fn").textContent = String(g.fn);
+  if ($("bn-tn")) $("bn-tn").textContent = String(g.tn);
 }
 
 function paintClock() {
@@ -541,16 +570,19 @@ function step() {
   paintDark();
   paintEvents();
   paintClock();
+  const starved = liveStatus.slice(1).includes("starved");
+  gradeBottlenecks(board, (station) => bottleneckOutcome(line, station).hit, line.t, starved);
   paintHitl();
+  paintBnGrade();
   if (view === "manager") paintManager();
   if (view === "leadership") paintLeadership();
-  const top = mc.bottleneck.indexOf(Math.max(...mc.bottleneck));
-  if (mc.bottleneck[top] >= BOTTLENECK_PCT && line.injected.name === "s3_slow_weld") {
+  const top = argmaxShare(mc.bottleneck);
+  const openBn = openTicket(board, "bottleneck");
+  if ((mc.bottleneck[top] >= BOTTLENECK_PCT || openBn) && line.t >= 8) {
     $("alert").classList.add("show");
   } else {
     $("alert").classList.remove("show");
   }
-  if (line.t >= 280) reset();
 }
 
 function reset() {
@@ -660,7 +692,7 @@ $("presets").addEventListener("click", (e) => {
   if (b) submitAsk(b.textContent);
 });
 
-["bn-ticket", "weld-ticket", "site-ticket"].forEach((id) => {
+["bn-ticket", "weld-ticket", "site-ticket", "disagree-ticket"].forEach((id) => {
   const el = $(id);
   if (el) el.addEventListener("click", onTicketClick);
 });

@@ -15,7 +15,12 @@ export const TICKET_TYPES = [
   "window_work",
   "site_go",
   "mapping",
+  "detectors_vs_floor",
 ];
+
+export const DISMISS_STREAK = 3;
+export const RANK_WORSEN_PP = 15;
+export const GRADE_HORIZON = 20;
 
 export const REASON_CODES = {
   mix_shift: "SUV vs sedan mix; posterior catching up",
@@ -46,6 +51,8 @@ export function freshBoard(opts = {}) {
     queuedWindows: [],
     siteGo: null,
     mappingSigned: true,
+    bnGrade: { tp: 0, fp: 0, fn: 0, tn: 0 },
+    lastFnT: -999,
   };
 }
 
@@ -71,23 +78,47 @@ export function openTicket(board, type, station = null) {
   );
 }
 
-function recentlyClosed(board, type, station, nowT, windowS) {
+function lastOf(board, type, station) {
   for (let i = board.tickets.length - 1; i >= 0; i--) {
     const t = board.tickets[i];
     if (t.type !== type) continue;
     if (station != null && t.station !== station) continue;
-    if (t.state === "proposed" || t.state === "acked") return true;
-    if (t.decidedT != null && nowT - t.decidedT < windowS) return true;
-    break;
+    return t;
   }
+  return null;
+}
+
+function recentlyClosed(board, type, station, nowT, windowS) {
+  const t = lastOf(board, type, station);
+  if (!t) return false;
+  if (t.state === "proposed" || t.state === "acked") return true;
+  if (t.decidedT != null && nowT - t.decidedT < windowS) return true;
   return false;
 }
 
-export function shouldPropose(board, type, station, nowT) {
+export function dismissCount(board, type, station) {
+  return board.tickets.filter(
+    (t) => t.type === type && (station == null || t.station === station) && t.state === "dismissed"
+  ).length;
+}
+
+export function shouldPropose(board, type, station, nowT, extra = {}) {
   if (openTicket(board, type, station)) return false;
-  if (type === "bottleneck" && recentlyClosed(board, type, station, nowT, 20)) return false;
+  if (type === "bottleneck") {
+    const last = lastOf(board, type, station);
+    if (!last) return true;
+    if (last.state === "proposed" || last.state === "acked") return false;
+    if (last.decision === "defer" && last.reason_code !== "sla_timeout") {
+      const prev = last.evidence?.pct ?? 0;
+      const pct = extra.pct ?? 0;
+      return pct >= prev + RANK_WORSEN_PP;
+    }
+    if (last.decidedT != null && nowT - last.decidedT < 20) return false;
+    return true;
+  }
   if (type === "weld_suspicious" && recentlyClosed(board, type, station, nowT, 12)) return false;
   if (type === "weld_confirmed" && recentlyClosed(board, type, station, nowT, 12)) return false;
+  if (type === "detectors_vs_floor" && recentlyClosed(board, type, station, nowT, 80)) return false;
   return true;
 }
 
@@ -155,6 +186,32 @@ export function decide(board, id, { verb, reason_code = null, reason_text = null
     board.siteGo = verb === "accept" ? "go" : verb === "defer" ? "defer" : "no-go";
   }
   return ticket;
+}
+
+/** Three dismisses of the same type+station in one shift → manager review. */
+export function shouldOpenDisagreement(board, ticket) {
+  if (ticket.decision !== "dismiss") return false;
+  if (ticket.type === "detectors_vs_floor") return false;
+  return dismissCount(board, ticket.type, ticket.station) >= DISMISS_STREAK;
+}
+
+/** Grade bottleneck tickets after the demo/shop horizon; never mix with weld QC. */
+export function gradeBottlenecks(board, outcomeFor, nowT, starvedWithoutTicket) {
+  for (const ticket of board.tickets) {
+    if (ticket.type !== "bottleneck" || ticket.grade !== "n/a") continue;
+    if (nowT - ticket.createdT < GRADE_HORIZON) continue;
+    const hit = outcomeFor(ticket.station);
+    ticket.grade = hit ? "tp" : "fp";
+    board.bnGrade[ticket.grade] += 1;
+  }
+  if (starvedWithoutTicket && !openTicket(board, "bottleneck")) {
+    const recent = lastOf(board, "bottleneck", null);
+    const recentlyProposed = recent && nowT - recent.createdT < GRADE_HORIZON + 10;
+    if (!recentlyProposed && nowT - (board.lastFnT ?? -999) > GRADE_HORIZON) {
+      board.bnGrade.fn += 1;
+      board.lastFnT = nowT;
+    }
+  }
 }
 
 export function ack(board, id, actor_role, t) {
