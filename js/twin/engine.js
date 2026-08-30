@@ -427,9 +427,9 @@ export function whatIf(line, { station, factor, rolls = 120, horizon = 120, seed
 
 export function argmaxShare(shares) {
   let best = -1;
-  let idx = 0;
-  for (let i = 0; i < shares.length; i++) {
-    if (shares[i] > best && i > 0) {
+  let idx = 1;
+  for (let i = 1; i < shares.length; i++) {
+    if (shares[i] > best) {
       best = shares[i];
       idx = i;
     }

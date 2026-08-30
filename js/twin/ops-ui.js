@@ -320,7 +320,7 @@ function proposeTickets() {
   const top = argmaxShare(mc.bottleneck);
   const pct = mc.bottleneck[top] || 0;
   const firstHit = mc.when[top] != null && (mc.conf[top] || 0) >= 50;
-  const actNow = pct >= BOTTLENECK_PCT || (firstHit && pct >= 40);
+  const actNow = top > 0 && (pct >= BOTTLENECK_PCT || (firstHit && pct >= 40));
   if (line.t >= 8 && actNow && shouldPropose(board, "bottleneck", top, line.t, { pct })) {
     const meta = STATION_META[top];
     propose(board, {
