@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DigitalTwin.ai: live ops</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/nav.css">
+<style>
+:root{
+  --paper:#FFFFFF; --ink:#17151C; --muted:#6E6880; --violet:#9D00F5;
+  --wash:#F4EAFE; --red:#D93025; --amber:#F29900; --green:#188038; --line:#E7E3EF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:Inter,system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 16px 64px}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--violet);margin-bottom:12px}
+h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(28px,4.4vw,44px);
+  line-height:1.06;text-align:center;letter-spacing:-.01em}
+h1 em{font-style:italic;color:var(--violet)}
+.sub{color:var(--muted);font-size:14px;margin-top:10px;max-width:640px;text-align:center;line-height:1.55}
+.note{margin-top:10px;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);text-align:center}
+.stage{width:min(1100px,100%);margin-top:22px;border:1px solid var(--line);border-radius:18px;
+  padding:18px 18px 16px;background:var(--paper)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{
+  font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;padding:8px 14px;min-height:40px;
+  border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.tabs button.on{background:var(--violet);color:#fff;border-color:var(--violet)}
+.phase{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:17px;min-height:24px;margin-bottom:8px}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-bottom:12px}
+.shop{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.shop-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.shop-h b{font-size:13px}
+.shop-h span{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+.lane{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:54px}
+.lane.ghost{opacity:.85;margin-bottom:6px}
+.chip{min-width:92px;padding:8px 8px 6px;border-radius:12px;color:#fff;background:var(--green);
+  display:flex;flex-direction:column;gap:1px;border:2px solid transparent}
+.chip.is-ghost{background:transparent;color:var(--violet);border:2px dashed var(--chip, var(--violet))}
+.chip.is-dark{background:repeating-linear-gradient(45deg, #5a5568, #5a5568 5px, #6e6880 5px, #6e6880 10px)}
+.chip.is-ghost.is-dark{background:repeating-linear-gradient(45deg, #F4EAFE, #F4EAFE 5px, #fff 5px, #fff 10px)}
+.chip .nm{font-weight:600;font-size:13px}
+.chip .role,.chip .st,.chip .ci,.chip .body{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.04em;opacity:.92}
+.chip.is-ghost .role,.chip.is-ghost .st,.chip.is-ghost .ci,.chip.is-ghost .body{color:var(--violet)}
+.chip:not(.is-ghost):not(.is-dark){background:var(--chip, var(--green))}
+.chip.is-dark:not(.is-ghost){box-shadow:inset 0 0 0 2px var(--chip, #6E6880)}
+.buf{display:flex;gap:3px}
+.buf i{width:9px;height:22px;border-radius:2px;background:#EFEAF7;display:block}
+.buf i.on{background:var(--violet)}
+.legendrow{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 4px}
+#shops[hidden], .legendrow[hidden]{display:none !important}
+.lg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:3px}
+.board{display:none}
+.board.on{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.card{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.card h3{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:10px}
+.riskrow,.heatrow,.darkrow{display:flex;align-items:center;gap:8px;margin:5px 0}
+.riskrow .nm,.heatrow .nm{font-size:11.5px;width:28px}
+.riskbar{flex:1;height:8px;background:var(--wash);border-radius:99px;overflow:hidden}
+.riskfill{height:100%;border-radius:99px;background:var(--violet);width:0;transition:width .4s}
+.pc{font-family:"IBM Plex Mono",monospace;font-size:10.5px;width:36px;text-align:right;color:var(--muted)}
+.heatrow .shop{width:42px;font-size:10px;color:var(--muted)}
+#log{font-family:"IBM Plex Mono",monospace;font-size:10.5px;line-height:1.8;color:var(--muted);
+  height:160px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+#log .hot{color:var(--red)} #log .good{color:var(--green)} #log .tw{color:var(--violet)}
+.alert{margin-top:8px;border-radius:12px;background:var(--wash);border:1px solid #E3CDF9;
+  padding:10px 12px;opacity:0;transform:translateY(6px);transition:all .5s}
+.alert.show{opacity:1;transform:none}
+.alert b{color:var(--violet)}
+.wavebox{position:relative;height:96px}
+.wavebox .band{position:absolute;left:0;right:0;top:26px;height:40px;background:var(--wash);border-radius:6px}
+.wavebox .bandlbl{position:absolute;left:6px;top:29px;font-family:"IBM Plex Mono",monospace;font-size:8.5px;color:var(--violet)}
+.wavebox svg{position:absolute;inset:0;width:100%;height:100%}
+.wavebox polyline{fill:none;stroke:var(--ink);stroke-width:1.8}
+.dflag{font-family:"IBM Plex Mono",monospace;font-size:10px;padding:4px 8px;border-radius:7px;
+  display:inline-block;margin-top:8px;margin-right:6px;opacity:0}
+.dflag.show{opacity:1}
+.dflag.if{background:#FDEBD0;color:#8a5a00}
+.dflag.ae{background:#FADBD8;color:var(--red)}
+.dnote,.empty{font-size:12px;color:var(--muted);line-height:1.5}
+.risk-body{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;margin:4px 0}
+.risk-body em{font-family:"IBM Plex Mono",monospace;font-style:normal;color:var(--violet)}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:9px;background:#FADBD8;color:var(--red);
+  border-radius:99px;padding:2px 7px}
+.tag.latent{background:#FDEBD0;color:#8a5a00}
+.darkrow{justify-content:space-between;font-size:12px}
+.darkrow span{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet)}
+.ctrls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;position:sticky;bottom:8px;background:var(--paper);padding-top:8px}
+button.act, .chip-btn{
+  font-family:Inter,sans-serif;font-size:12.5px;font-weight:500;padding:8px 14px;min-height:40px;
+  border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+button.act:hover,.chip-btn:hover,.tabs button:hover{border-color:var(--violet);color:var(--violet)}
+.tabs button.on:hover{color:#fff}
+#clock{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);margin-left:auto}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 14px}
+@media(max-width:720px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi b{display:block;font-family:Fraunces,Georgia,serif;font-size:26px}
+.kpi span{font-size:11px;color:var(--muted)}
+.qcgrid{display:grid;grid-template-columns:72px 1fr 1fr;gap:6px;font-size:12px;text-align:center;margin-bottom:8px}
+.qcgrid div{background:var(--wash);border-radius:8px;padding:8px}
+.qcgrid .h{background:transparent;color:var(--muted);font-family:"IBM Plex Mono",monospace;font-size:10px}
+.cover{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+@media(max-width:720px){.cover{grid-template-columns:repeat(4,1fr)}}
+.cov{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;font-size:12px}
+.cov.dark{background:repeating-linear-gradient(45deg,#F4EAFE,#F4EAFE 6px,#fff 6px,#fff 12px)}
+.cov.ok{background:#F3FBF5}
+.cov span{display:block;font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--muted);margin-top:2px}
+#next-sensor{font-size:13px;line-height:1.5}
+#next-sensor p{color:var(--muted);margin-top:6px}
+.lead-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.lead-grid{grid-template-columns:1fr}}
+.lead-grid p,.prose p{font-size:13.5px;line-height:1.6;color:var(--muted);margin:8px 0}
+.lead-grid b,.prose b{color:var(--ink)}
+.assumptions{background:var(--wash);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.55}
+.copilot{margin-top:12px;border:1px solid #E3CDF9;background:#FBF7FF;border-radius:14px;padding:14px}
+.copilot h3{margin-bottom:8px}
+#presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.askrow{display:flex;gap:8px}
+.askrow input{flex:1;border:1px solid var(--line);border-radius:99px;padding:10px 14px;font:inherit;min-height:42px}
+#runline{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet);margin:8px 0 4px;min-height:16px}
+#answer{font-size:13.5px;line-height:1.55}
+.ticket-bar{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.ticket-bar .tid{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--violet);margin-bottom:6px}
+.ticket-bar .idle{font-size:12px;color:var(--muted)}
+.verbs,.reasons{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.verbs button,.reasons button,.hitl-btn{
+  font-family:Inter,sans-serif;font-size:12px;font-weight:500;padding:8px 12px;min-height:40px;
+  border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.verbs button.accept{border-color:var(--green);color:var(--green)}
+.verbs button.dismiss{border-color:var(--red);color:var(--red)}
+.reasons button.on,.hitl-btn.on{background:var(--violet);color:#fff;border-color:var(--violet)}
+.verbs button:disabled,.hitl-btn:disabled{opacity:.45;cursor:not-allowed}
+.hitl-log{font-family:"IBM Plex Mono",monospace;font-size:10.5px;line-height:1.8;color:var(--muted);
+  max-height:140px;overflow:auto}
+.hitl-log .acted{color:var(--green)} .hitl-log .dismissed{color:var(--red)} .hitl-log .deferred{color:var(--amber)}
+.freeze-copy{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0}
+.queue-list{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--violet);margin-top:8px}
+.mapgrid{display:flex;flex-wrap:wrap;gap:6px}
+.mapchip{font-size:11px;padding:6px 8px;border-radius:8px;border:1px solid var(--line)}
+.mapchip.ok{background:#F3FBF5} .mapchip.dark{background:var(--wash)}
+#audit-preview{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);
+  max-height:88px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+@media (prefers-reduced-motion: reduce){ .riskfill,.alert,.dflag{transition:none} }
+</style>
+</head>
+<body>
+<div class="eyebrow">DigitalTwin.ai · Round 2 ops · Track 4</div>
+<h1>Three desks, <em>one twin.</em></h1>
+<p class="sub">The same 12-station engine feeds the floor supervisor, the plant manager, and leadership. Solid chips are the floor now. Dashed chips are the twin 20 seconds ahead. Nothing here writes a PLC.</p>
+<p class="note">Simulated production data · 12 stations stand in for 30–50 · ~70% sensed / ~30% dark</p>
+
+<div class="stage">
+  <div class="tabs" role="tablist" aria-label="Stakeholder views">
+    <button type="button" data-view="supervisor" class="on">Floor supervisor</button>
+    <button type="button" data-view="manager">Plant manager</button>
+    <button type="button" data-view="leadership">Leadership</button>
+  </div>
+
+  <div class="phase" id="phase">Steady state. 12 stations in Body, Paint, and Final. Eight sensed, four dark. Advisory only.</div>
+  <div class="meta">
+    <span>Scenario: <b id="scenario">baseline</b></span>
+    <span>Ghost: +20 s</span>
+    <span>Advisory only · no PLC writes</span>
+  </div>
+  <div id="shops"></div>
+  <div class="legendrow">
+    <span class="lg"><span class="dot" style="background:#188038"></span>running</span>
+    <span class="lg"><span class="dot" style="background:#D93025"></span>slow</span>
+    <span class="lg"><span class="dot" style="background:#F29900"></span>starved</span>
+    <span class="lg"><span class="dot" style="background:#6E6880"></span>blocked / dark hatch</span>
+    <span class="lg" style="margin-left:auto">dashed = twin +20 s · hatched = no sensor, CI only</span>
+  </div>
+
+  <div class="board on" data-board="supervisor">
+    <div class="grid">
+      <div class="card">
+        <h3>Bottleneck forecast · next 24 s</h3>
+        <div id="risks"></div>
+        <div class="alert" id="alert">
+          <div><b>Twin alert.</b> Constraint forming. Advisory: pre-stage the downstream buffer and hold a retrofit for the maintenance window. The twin does not write the cell.</div>
+          <div class="ticket-bar" id="bn-ticket" data-slot="bottleneck"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Defect watch · S3 weld current</h3>
+        <div class="wavebox">
+          <div class="band"></div><div class="bandlbl">normal band</div>
+          <svg viewBox="0 0 300 96" preserveAspectRatio="none"><polyline id="wave" points=""/></svg>
+        </div>
+        <span class="dflag if" id="fIF">Isolation Forest: suspicious</span>
+        <span class="dflag ae" id="fAE">Autoencoder: drift confirmed</span>
+        <div class="dnote">Early weld defects only surface at S12 inspect. Flagged bodies stay on the “at risk” list until QC grades them. Dismissing a bottleneck ticket does <b>not</b> drop those IDs.</div>
+        <div class="ticket-bar" id="weld-ticket" data-slot="weld"></div>
+      </div>
+      <div class="card">
+        <h3>Event log</h3>
+        <div id="log"></div>
+      </div>
+      <div class="card">
+        <h3>HITL tickets</h3>
+        <div class="dnote">Twin proposes. A named person Accepts, Defers, or Dismisses. Silent expiry is a missed SLA, never a fake accept.</div>
+        <div class="hitl-log" id="hitl-log"></div>
+      </div>
+      <div class="card">
+        <h3>Dark stations · 80% CI</h3>
+        <div id="darklist"></div>
+        <h3 style="margin-top:14px">Bodies at risk until inspect · <span id="atrisk-count">0</span></h3>
+        <div id="atrisk"></div>
+      </div>
+    </div>
+    <div class="copilot">
+      <h3>Ask the twin</h3>
+      <div class="dnote">Tool-calling only. The LLM is the interface; the simulation is the truth.</div>
+      <div id="presets"></div>
+      <div class="askrow">
+        <input id="askq" type="text" placeholder="Ask a what-if, a sensor question, or a QC question" aria-label="Ask the twin">
+        <button class="act" type="button" id="askgo">Ask</button>
+      </div>
+      <div id="runline"></div>
+      <div id="answer"></div>
+      <div class="verbs" style="margin-top:10px">
+        <button type="button" class="hitl-btn" id="ask-promote">Promote to ticket</button>
+        <button type="button" class="hitl-btn dismiss" id="ask-misread">Dismiss · copilot_misread</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="board" data-board="manager">
+    <div class="kpis">
+      <div class="kpi"><b id="kpi-jph">—</b><span>bodies / hour (live)</span></div>
+      <div class="kpi"><b id="kpi-shift">—</b><span>projected 8 h shift</span></div>
+      <div class="kpi"><b id="kpi-done">—</b><span>completed this run</span></div>
+      <div class="kpi"><b id="kpi-cover">—</b><span>sensor coverage</span></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>Constraint heat · busy fraction</h3>
+        <div id="heat"></div>
+      </div>
+      <div class="card">
+        <h3>False alarm vs QC grade</h3>
+        <div class="qcgrid">
+          <div class="h"></div><div class="h">QC fail</div><div class="h">QC pass</div>
+          <div class="h">Flagged</div><div>TP <b id="qc-tp">0</b></div><div>FP <b id="qc-fp">0</b></div>
+          <div class="h">Clear</div><div>FN <b id="qc-fn">0</b></div><div>TN <b id="qc-tn">0</b></div>
+        </div>
+        <p class="dnote">False-alarm rate <b id="qc-fa">0%</b> of alerts · catch rate <b id="qc-catch">0%</b> of true weld defects. Every Isolation Forest / autoencoder flag is graded at S12 so false alarms die instead of piling up.</p>
+        <p class="dnote">Missed <code>act_now</code> SLAs this run: <b id="missed-sla">0</b> (never auto-accept).</p>
+        <h3 style="margin-top:14px">Bottleneck grades · Stage 1 (not weld QC)</h3>
+        <div class="qcgrid">
+          <div class="h"></div><div class="h">Starved / won</div><div class="h">Stayed green</div>
+          <div class="h">Ticket</div><div>TP <b id="bn-tp">0</b></div><div>FP <b id="bn-fp">0</b></div>
+          <div class="h">No ticket</div><div>FN <b id="bn-fn">0</b></div><div>TN <b id="bn-tn">0</b></div>
+        </div>
+        <p class="dnote">Graded after the +20 s horizon. Kept off the weld confusion matrix.</p>
+      </div>
+      <div class="card">
+        <h3>Detector freeze</h3>
+        <p class="freeze-copy" id="freeze-copy"></p>
+        <button type="button" class="hitl-btn" id="freeze-btn">Freeze AE confirm until retune window</button>
+        <p class="dnote" id="freeze-state">AE confirm is live.</p>
+        <div class="ticket-bar" id="disagree-ticket" data-slot="detectors_vs_floor"></div>
+      </div>
+      <div class="card">
+        <h3>Sensor coverage map · Stage 0 signed</h3>
+        <div class="cover" id="cover-map"></div>
+        <div class="mapgrid" id="mapping" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h3>Next sensor · queue for window</h3>
+        <div id="next-sensor"></div>
+        <button type="button" class="hitl-btn" id="queue-sensor">Queue for maintenance window</button>
+        <div class="queue-list" id="queue-list"></div>
+        <p class="dnote">Does not flip a station to sensed live. Hardware waits for a window the plant already has.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="board" data-board="leadership">
+    <div class="kpis">
+      <div class="kpi"><b id="lead-cover">—</b><span>this segment now</span></div>
+      <div class="kpi"><b id="lead-remain">—</b><span>remaining sensors (₹7k ea)</span></div>
+      <div class="kpi"><b id="lead-site">—</b><span>full 12-station kit / site</span></div>
+      <div class="kpi"><b id="lead-three">—</b><span>3-site sensor scale</span></div>
+    </div>
+    <div class="lead-grid">
+      <div class="card prose">
+        <h3>Advisory-only rollout</h3>
+        <p>Clip-on clamps and one camera per bay. <b>No PLC opened, no closed-loop write, no production halt</b> except during a window the plant already has. The twin recommends; a supervisor still moves the operator.</p>
+        <p>Live now: constraint <b id="lead-constraint">—</b>. Throughput <b id="lead-jph">—</b>. QC <span id="lead-qc">—</span>.</p>
+      </div>
+      <div class="card prose">
+        <h3>Three-site scale</h3>
+        <p>This prototype is <b>12 stations standing in for a 30–50 station shop</b>. Copy the same Bayesian priors, the same dark-station CI rule, and the same QC grading to three body shops. Sensors stay the cheap part; the twin is the software that makes 30% darkness honest.</p>
+      </div>
+      <div class="card prose">
+        <h3>Risks we already designed against</h3>
+        <p><b>False alarms erode trust</b> → every weld flag is graded at Final inspect.<br>
+        <b>Dark stations hide the constraint</b> → 80% CI bands, never a fake point.<br>
+        <b>Delayed defects</b> → bodies stay on the at-risk list from S3 to S12.<br>
+        <b>IT / OT freeze</b> → advisory only; retrofits wait for a maintenance window.</p>
+      </div>
+      <div class="card prose">
+        <h3>Shop B go / no-go</h3>
+        <p>Copy the <b>playbook and Bayesian priors</b>, not a frozen model. Shop B runs its own Stage 0–2 and its own freeze threshold. Dismiss if the site has no inspect gate to grade welds.</p>
+        <div class="ticket-bar" id="site-ticket" data-slot="site_go"></div>
+        <p class="dnote" id="site-go-state">No leadership decision yet.</p>
+      </div>
+      <div class="card">
+        <h3>Assumptions (stated, not hidden)</h3>
+        <div class="assumptions">
+          12 stations ≈ 30–50 station line · ~70% sensed / ~30% dark · mixed-model A sedan / B SUV ·
+          simulated events, not a live MES · published weld-quality papers are cited as motivation, not as this prototype’s measured accuracy ·
+          no 3D, no MES, no PLC upgrade, no unit-level genealogy, no closed-loop control.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrls">
+    <button class="act" type="button" id="pp">Pause</button>
+    <button class="act" type="button" id="rs">Restart</button>
+    <button class="act" type="button" id="sp">Speed 1x</button>
+    <button class="act" type="button" id="inj">Inject S3 slow + weld drift</button>
+    <button class="act" type="button" id="heal">Recover in maintenance window</button>
+    <button class="act" type="button" id="export-audit">Export HITL audit JSON</button>
+    <span id="clock">t = 0 s</span>
+  </div>
+</div>
+
+<script type="module" src="../js/twin/ops-ui.js"></script>
+<script src="../js/nav.js"></script>
+</body>
+</html>

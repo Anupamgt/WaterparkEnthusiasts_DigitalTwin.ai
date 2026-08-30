@@ -11,6 +11,7 @@
     { href: "live-twin.html", id: "live-twin", label: "Live twin" },
     { href: "architecture.html", id: "architecture", label: "Architecture" },
     { href: "setup.html", id: "setup", label: "Setup" },
+    { href: "ops.html", id: "ops", label: "Ops" },
   ];
 
   const file = (location.pathname.split("/").pop() || "").toLowerCase();
