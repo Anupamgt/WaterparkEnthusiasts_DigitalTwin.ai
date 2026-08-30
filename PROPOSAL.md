@@ -150,7 +150,8 @@ Mapped to the Round 2 brief:
 
 ## 9. What to run, what to watch
 
+- Written submission: [README.md](README.md) (start here).
 - Prototype: `pages/ops.html` (also dashboard chapter **06 · Ops**).
-- Story (Round 1 walkthrough, still five stations): chapters 01–05.
+- Story: chapters 01–05; **03 · Live twin** now runs the same 12-station engine (scripted inject/recover). HITL verbs are on Ops.
 - Tests: `npm test`.
-- How to run and where the demo video lives: [README.md](README.md).
+- Demo click / speak script: [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).

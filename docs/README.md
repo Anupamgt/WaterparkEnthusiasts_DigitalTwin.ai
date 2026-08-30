@@ -1,8 +1,8 @@
 # Docs
 
-- [PRD.md](PRD.md) — stage-wise product PRD (Clip-on → Ghost → Grade → Dark honesty → Ask → Three sites) with system, data, and user flows.
-- [HITL-PRD.md](HITL-PRD.md) — tickets, Accept/Defer/Dismiss, supervisor → QC → manager freeze → maintenance window.
-- [WALKTHROUGH.md](WALKTHROUGH.md) — click script for the demo recording (Live twin → Ops HITL).
-- Round 2 walkthrough video: `demo.mp4` in this folder (Live twin 12-station story, then Ops: supervisor HITL, manager window queue + bottleneck grades, leadership go/no-go).
+The **hackathon written submission** is the repo root [README.md](../README.md).
 
-If the file is missing in a shallow checkout, use the copy attached to the pull request.
+- [PRD.md](PRD.md) — stage-wise product (Clip-on → Ghost → Grade → Dark honesty → Ask → Three sites).
+- [HITL-PRD.md](HITL-PRD.md) — tickets, Accept / Defer / Dismiss.
+- [WALKTHROUGH.md](WALKTHROUGH.md) — **teleprompter**: which page to open and what to say (~90–120 s).
+- Optional reference recording: `demo.mp4` in this folder if present. Submit your own take for the video slot.
